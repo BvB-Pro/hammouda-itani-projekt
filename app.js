@@ -1,236 +1,155 @@
-// Hammouda-Itani-Stiftung – Trainingsseite (lokale Speicherung über localStorage)
-const state = { page: 'home', storeKey: 'stiftung-store-v1' };
+/* Hammouda-Itani-Stiftung – Trainingsseite (Local-Only)
+   Features:
+   - Schöne Startseite mit Kacheln
+   - Module: Kita (Kinder, Beobachtungen, Anwesenheit, Elternkommunikation)
+             Pflegeheim (Bewohner, Pflegeberichte, Vitalwerte, Medigabe-Training, Sturzmeldungen)
+             Weitere Einrichtungen als Platzhalterformulare
+   - Demo-Daten laden, CSV/JSON-Export, Druckansicht, Dark-Mode
+*/
+
+const qs = (s) => document.querySelector(s);
+const ce = (t, p = {}) => Object.assign(document.createElement(t), p);
+
+const state = { page: "home", storeKey: "stiftung-store-v2", dark: false };
+let STORE = initStore();
 
 function initStore() {
-  const s = localStorage.getItem(state.storeKey);
-  if (s) return JSON.parse(s);
-  const seed = {
-    kita: { kinder: [], beobachtungen: [] },
-    pflege: { bewohner: [], berichte: [] },
-    meta: { created: new Date().toISOString(), version: 1 }
+  const raw = localStorage.getItem(state.storeKey);
+  if (raw) return JSON.parse(raw);
+  const seed = { meta: { version: 2, created: new Date().toISOString() },
+    kita: { kinder: [], beobachtungen: [], anwesenheit: [], eltern: [] },
+    pflege: { bewohner: [], berichte: [], vitals: [], medis: [], sturz: [] },
+    krankenhaus: { patienten: [], vitals: [] },
+    ambulant: { touren: [] },
+    ergo: { einheiten: [] },
+    apotheke: { abgaben: [] },
   };
   localStorage.setItem(state.storeKey, JSON.stringify(seed));
   return seed;
 }
-let STORE = initStore();
 function save() { localStorage.setItem(state.storeKey, JSON.stringify(STORE)); }
 
-function render() {
-  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.page===state.page));
-  const app = document.getElementById('app'); app.innerHTML='';
-
-  if (state.page==='home') {
-    app.innerHTML = `
-      <div class="card">
-        <h2>Willkommen</h2>
-        <p>Dies ist die Übungs-Website der <strong>Hammouda-Itani-Stiftung</strong>.
-           Wähle oben eine Einrichtung, um realistisch zu dokumentieren.
-           <br><span class="badge">Speicherung: nur lokal (localStorage)</span>
-        </p>
-      </div>`;
-  }
-
-  if (state.page==='verwaltung') {
-    app.innerHTML = `
-      <div class="card">
-        <h2>Hand in Hand Verwaltung</h2>
-        <p>Zentrale Verwaltung – hier könnten später Vorlagen, Anweisungen und Checklisten erscheinen.</p>
-      </div>`;
-  }
-
-  if (state.page==='kita') app.appendChild(kitaView());
-
-  if (state.page==='krankenhaus') {
-    app.innerHTML = `
-      <div class="card">
-        <h2>Mond-Krankenhaus</h2>
-        <p>Übungsbereich für Stations-/Patientendokumentation (Platzhalter für spätere Formulare wie Aufnahme, Vitalwerte, Pflegeplanung).</p>
-      </div>`;
-  }
-
-  if (state.page==='pflegeheim') app.appendChild(pflegeView());
-
-  if (state.page==='ambulant') {
-    app.innerHTML = `
-      <div class="card">
-        <h2>Ambulanter Pflegedienst zum Stern</h2>
-        <p>Platzhalter für Tourenplanung & Einsatzdokumentation (Folgebau möglich: Klienten, Einsätze, Leistungen, Zeiten).</p>
-      </div>`;
-  }
-
-  if (state.page==='ergo') {
-    app.innerHTML = `
-      <div class="card">
-        <h2>Ergotherapeuten „Unart“</h2>
-        <p>Platzhalter für ergotherapeutische Befunde, Ziele und Einheiten.</p>
-      </div>`;
-  }
-
-  if (state.page==='apotheke') {
-    app.innerHTML = `
-      <div class="card">
-        <h2>Sonnen Apotheke</h2>
-        <p>Platzhalter für Übungsmedikamentenlisten & Abgabe-Doku.</p>
-      </div>`;
-  }
+// ---------- Utilities ----------
+function today() { return new Date().toISOString().slice(0,10); }
+function toCSV(rows) {
+  if (!rows?.length) return "";
+  const keys = [...new Set(rows.flatMap(r => Object.keys(r)))];
+  const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  return [keys.map(esc).join(","), ...rows.map(r => keys.map(k => esc(r[k])).join(","))].join("\n");
+}
+function exportCSV(rows, name="export.csv") {
+  const blob = new Blob([toCSV(rows)], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = ce("a", { href: url, download: name }); document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 500);
+}
+function exportJSON(obj, name="export.json") {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = ce("a", { href: url, download: name }); document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 500);
+}
+function badge(txt){ return `<span class="badge">${txt}</span>`; }
+function section(title, bodyHTML){ const d=ce("div",{className:"card"}); d.innerHTML=`<h3>${title}</h3>${bodyHTML||""}`; return d; }
+function info(title, text){ const d=ce("div",{className:"card"}); d.innerHTML=`<h2>${title}</h2><p class="muted">${text||""}</p>`; return d; }
+function emptyMsg(msg="Noch keine Daten."){ const p=ce("p",{className:"muted"}); p.textContent=msg; return p; }
+function selectOpts(arr, valKey, labelKey) {
+  return arr.map(o => `<option value="${o[valKey]}">${o[labelKey]}</option>`).join("");
 }
 
-/* ---------- KITA: Kinder & Beobachtungen ---------- */
-function kitaView() {
-  const wrap = document.createElement('div');
-
-  const info = document.createElement('div');
-  info.className = 'card';
-  info.innerHTML = `
-    <h2>Die drei Löwen Kindergarten</h2>
-    <p>Kinderprofile & Beobachtungen. <span class="badge">Training</span></p>`;
-  wrap.appendChild(info);
-
-  // Kinder
-  const kDiv = document.createElement('div');
-  kDiv.className='card';
-  kDiv.innerHTML = `<h3>Kinder</h3>`;
-  if (STORE.kita.kinder.length === 0) {
-    const hint = document.createElement('p');
-    hint.className = 'muted';
-    hint.textContent = 'Noch keine Kinder angelegt.';
-    kDiv.appendChild(hint);
-  }
-  STORE.kita.kinder.forEach(k => {
-    const d = document.createElement('div');
-    d.innerHTML = `<strong>${k.vorname} ${k.nachname}</strong> — geb. ${k.geburtstag || '—'}`;
-    kDiv.appendChild(d);
+// ---------- Header & Tabs ----------
+document.addEventListener("DOMContentLoaded", () => {
+  qs("#tabs").addEventListener("click", (e) => {
+    if (e.target.matches("button[data-page]")) {
+      qs("#tabs").querySelectorAll("button").forEach(b=>b.classList.remove("active"));
+      e.target.classList.add("active");
+      state.page = e.target.dataset.page;
+      render();
+    }
   });
-  const form = document.createElement('form');
-  form.innerHTML = `
-    <label>Vorname<input name="vorname" required></label>
-    <label>Nachname<input name="nachname" required></label>
-    <label>Geburtstag<input type="date" name="geburtstag"></label>
-    <button class="action">Kind hinzufügen</button>`;
-  form.onsubmit = (e) => {
-    e.preventDefault();
-    STORE.kita.kinder.push(Object.fromEntries(new FormData(form)));
-    save(); render();
-  };
-  kDiv.appendChild(form);
-  wrap.appendChild(kDiv);
 
-  // Beobachtungen
-  const bDiv = document.createElement('div');
-  bDiv.className='card';
-  bDiv.innerHTML = `<h3>Beobachtungen</h3>`;
-  if (STORE.kita.beobachtungen.length === 0) {
-    const hint = document.createElement('p');
-    hint.className = 'muted';
-    hint.textContent = 'Noch keine Beobachtungen gespeichert.';
-    bDiv.appendChild(hint);
-  }
-  STORE.kita.beobachtungen.forEach(b => {
-    const d = document.createElement('div');
-    d.innerHTML = `<strong>${b.kind}</strong>: ${b.text || '—'} <em>(${b.datum || '—'})</em>`;
-    bDiv.appendChild(d);
+  // Dropdown actions
+  document.body.addEventListener("click", (e)=>{
+    if (e.target.matches(".dropdown .menu button")) {
+      const act = e.target.dataset.action;
+      if (act==="seed") seedDemo();
+      if (act==="export-json") exportJSON(STORE, "stiftung-export.json");
+      if (act==="print") window.print();
+      if (act==="reset") {
+        if (confirm("Wirklich alle lokalen Daten löschen?")) {
+          localStorage.removeItem(state.storeKey); STORE = initStore(); render();
+        }
+      }
+    }
   });
-  const form2 = document.createElement('form');
-  form2.innerHTML = `
-    <label>Kind
-      <select name="kind">
-        ${STORE.kita.kinder.map(k => `<option>${k.vorname} ${k.nachname}</option>`).join('')}
-      </select>
-    </label>
-    <label>Datum<input type="date" name="datum" value="${new Date().toISOString().slice(0,10)}"></label>
-    <label>Text<textarea name="text"></textarea></label>
-    <button class="action">Beobachtung speichern</button>`;
-  form2.onsubmit = (e) => {
-    e.preventDefault();
-    STORE.kita.beobachtungen.push(Object.fromEntries(new FormData(form2)));
-    save(); render();
-  };
-  bDiv.appendChild(form2);
-  wrap.appendChild(bDiv);
 
-  return wrap;
-}
-
-/* ---------- PFLEGE: Bewohner & Berichte ---------- */
-function pflegeView() {
-  const wrap = document.createElement('div');
-
-  const info = document.createElement('div');
-  info.className = 'card';
-  info.innerHTML = `
-    <h2>Pflegeheim der Gemeinschaft</h2>
-    <p>Bewohnerprofile & Pflegeberichte. <span class="badge">Training</span></p>`;
-  wrap.appendChild(info);
-
-  // Bewohner
-  const pDiv = document.createElement('div');
-  pDiv.className='card';
-  pDiv.innerHTML = `<h3>Bewohner</h3>`;
-  if (STORE.pflege.bewohner.length === 0) {
-    const hint = document.createElement('p');
-    hint.className = 'muted';
-    hint.textContent = 'Noch keine Bewohner angelegt.';
-    pDiv.appendChild(hint);
-  }
-  STORE.pflege.bewohner.forEach(p => {
-    const d = document.createElement('div');
-    d.innerHTML = `<strong>${p.vorname} ${p.nachname}</strong> — geb. ${p.geburt || '—'}`;
-    pDiv.appendChild(d);
+  // Dark mode toggle
+  const darkBtn = qs("#darkToggle");
+  const pref = localStorage.getItem("stiftung-dark");
+  if (pref === "1") document.documentElement.classList.add("dark");
+  darkBtn.addEventListener("click", () => {
+    document.documentElement.classList.toggle("dark");
+    localStorage.setItem("stiftung-dark", document.documentElement.classList.contains("dark") ? "1" : "0");
   });
-  const form = document.createElement('form');
-  form.innerHTML = `
-    <label>Vorname<input name="vorname" required></label>
-    <label>Nachname<input name="nachname" required></label>
-    <label>Geburt<input type="date" name="geburt"></label>
-    <button class="action">Bewohner hinzufügen</button>`;
-  form.onsubmit = (e) => {
-    e.preventDefault();
-    STORE.pflege.bewohner.push(Object.fromEntries(new FormData(form)));
-    save(); render();
-  };
-  pDiv.appendChild(form);
-  wrap.appendChild(pDiv);
 
-  // Berichte
-  const bDiv = document.createElement('div');
-  bDiv.className='card';
-  bDiv.innerHTML = `<h3>Pflegerische Berichte</h3>`;
-  if (STORE.pflege.berichte.length === 0) {
-    const hint = document.createElement('p');
-    hint.className = 'muted';
-    hint.textContent = 'Noch keine Berichte gespeichert.';
-    bDiv.appendChild(hint);
-  }
-  STORE.pflege.berichte.forEach(b => {
-    const d = document.createElement('div');
-    d.innerHTML = `<strong>${b.bewohner}</strong>: ${b.text || '—'} <em>(${b.datum || '—'})</em>`;
-    bDiv.appendChild(d);
-  });
-  const form2 = document.createElement('form');
-  form2.innerHTML = `
-    <label>Bewohner
-      <select name="bewohner">
-        ${STORE.pflege.bewohner.map(p => `<option>${p.vorname} ${p.nachname}</option>`).join('')}
-      </select>
-    </label>
-    <label>Datum<input type="date" name="datum" value="${new Date().toISOString().slice(0,10)}"></label>
-    <label>Text<textarea name="text"></textarea></label>
-    <button class="action">Bericht speichern</button>`;
-  form2.onsubmit = (e) => {
-    e.preventDefault();
-    STORE.pflege.berichte.push(Object.fromEntries(new FormData(form2)));
-    save(); render();
-  };
-  bDiv.appendChild(form2);
-  wrap.appendChild(bDiv);
-
-  return wrap;
-}
-
-/* ---------- Setup ---------- */
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('nav button').forEach(b => {
-    b.addEventListener('click', () => { state.page = b.dataset.page; render(); });
-  });
   render();
 });
+
+// ---------- Render ----------
+function render() {
+  const app = qs("#app"); app.innerHTML = "";
+
+  if (state.page === "home") {
+    app.appendChild(info("Willkommen", `Wähle eine Einrichtung oder lade ${badge("Demo-Daten")} über „Daten ▾“ oben. Alle Einträge werden lokal gespeichert (localStorage).`));
+    const grid = ce("div", { className: "grid" });
+    [
+      ["verwaltung","Hand in Hand Verwaltung","Zentrale Infos & Vorlagen (Platzhalter)."],
+      ["kita","Die drei Löwen Kindergarten","Kinder, Beobachtungen, Anwesenheit, Elternkommunikation."],
+      ["krankenhaus","Mond-Krankenhaus","Aufnahme & Vitalwerte (Training, Platzhalter erweitert)."],
+      ["pflegeheim","Pflegeheim der Gemeinschaft","Bewohner, Pflegeberichte, Vitalwerte, Medigabe, Sturzmeldungen."],
+      ["ambulant","Ambulanter Pflegedienst zum Stern","Einfache Touren- & Einsatzdoku."],
+      ["ergo","Ergotherapeuten „Unart“","Befunde, Ziele, Einheiten (Training)."],
+      ["apotheke","Sonnen-Apotheke","Abgabe-Übungen (Training)."]
+    ].forEach(([id, title, desc])=>{
+      const a = ce("a",{className:"kachel", href:"#", onclick:(e)=>{e.preventDefault(); switchTo(id);} });
+      a.innerHTML = `<div class="icon">★</div><div><strong>${title}</strong><div class="muted">${desc}</div></div>`;
+      grid.appendChild(a);
+    });
+    app.appendChild(grid);
+    return;
+  }
+
+  if (state.page === "verwaltung") {
+    app.appendChild(info("Hand in Hand Verwaltung", "Zentrale Verwaltung – hier später Richtlinien, Checklisten, Vorlagen."));
+    app.appendChild(section("Export / Backup", `
+      <div class="toolbar">
+        <button class="btn primary" onclick="exportJSON(STORE,'stiftung-export.json')">Als JSON exportieren</button>
+      </div>
+    `));
+    return;
+  }
+
+  if (state.page === "kita") return renderKita(app);
+  if (state.page === "pflegeheim") return renderPflege(app);
+  if (state.page === "krankenhaus") return renderKrankenhaus(app);
+  if (state.page === "ambulant") return renderAmbulant(app);
+  if (state.page === "ergo") return renderErgo(app);
+  if (state.page === "apotheke") return renderApotheke(app);
+}
+
+function switchTo(id){
+  state.page=id;
+  qs("#tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("active", b.dataset.page===id));
+  render();
+}
+
+// ---------- KITA ----------
+function renderKita(app){
+  app.appendChild(info("Die drei Löwen Kindergarten", "Dokumentation für Trainingszwecke. Keine echten Personendaten verwenden."));
+
+  // Kinder
+  const kinder = ce("div",{className:"card"});
+  kinder.innerHTML = `<h3>Kinder</h3>`;
+  if (!STORE.kita.kinder.length) kinder.appendChild(emptyMsg("Noch keine Kinder angelegt."));
+  STORE.kita.kinder.forEach(k=>{
+    const line
