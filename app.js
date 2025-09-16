@@ -1,80 +1,79 @@
-/* Hammouda-Itani-Stiftung – Trainingsseite (Local-Only)
-   Features:
-   - Schöne Startseite mit Kacheln
-   - Module: Kita (Kinder, Beobachtungen, Anwesenheit, Elternkommunikation)
-             Pflegeheim (Bewohner, Pflegeberichte, Vitalwerte, Medigabe-Training, Sturzmeldungen)
-             Weitere Einrichtungen als Platzhalterformulare
-   - Demo-Daten laden, CSV/JSON-Export, Druckansicht, Dark-Mode
+/* Hammouda-Itani-Stiftung – schöne, volle Trainingsversion
+   - Bunter, lebendiger Hintergrund
+   - Hero pro Seite (Titel + Slogan)
+   - Großer „Unternehmen“-Dropdown (alle Einrichtungen)
+   - „Sonstiges“-Dropdown (Daten, Export, Dark Mode, Löschen)
+   - Druckansicht-Button immer oben rechts
+   - Je Seite kurzer Infotext
+   - Neue Einrichtung: Kinderarzt-Praxis
+   - Lokale Speicherung (localStorage)
 */
 
 const qs = (s) => document.querySelector(s);
 const ce = (t, p = {}) => Object.assign(document.createElement(t), p);
+const today = () => new Date().toISOString().slice(0,10);
 
-const state = { page: "home", storeKey: "stiftung-store-v2", dark: false };
+const PAGES = [
+  { id:"home",          title:"Hammouda-Itani Stiftung", slogan:"Die Stiftung von uns für uns." },
+  { id:"verwaltung",    title:"Hand in Hand Verwaltung", slogan:"Zentrale Steuerung für starke Teams." },
+  { id:"kita",          title:"Die drei Löwen Kindergarten", slogan:"Der Kindergarten für echte Löwen." },
+  { id:"krankenhaus",   title:"Mond-Krankenhaus", slogan:"Medizin mit Herz – Tag & Nacht." },
+  { id:"pflegeheim",    title:"Pflegeheim der Gemeinschaft", slogan:"Würde. Nähe. Gemeinschaft." },
+  { id:"ambulant",      title:"Ambulanter Pflegedienst zum Stern", slogan:"Hilfe, die zu Ihnen kommt." },
+  { id:"ergo",          title:"Ergotherapeuten „Unart“", slogan:"Ungewohnt gut – Therapie neu gedacht." },
+  { id:"apotheke",      title:"Sonnen Apotheke", slogan:"Die Apotheke mit dem Strahlen." },
+  { id:"kinderarzt",    title:"Kinderarzt-Praxis", slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten." },
+];
+
+const state = { page: "home", storeKey: "stiftung-store-v3" };
 let STORE = initStore();
 
 function initStore() {
   const raw = localStorage.getItem(state.storeKey);
   if (raw) return JSON.parse(raw);
-  const seed = { meta: { version: 2, created: new Date().toISOString() },
+  const seed = {
+    meta: { version: 3, created: new Date().toISOString() },
     kita: { kinder: [], beobachtungen: [], anwesenheit: [], eltern: [] },
     pflege: { bewohner: [], berichte: [], vitals: [], medis: [], sturz: [] },
     krankenhaus: { patienten: [], vitals: [] },
     ambulant: { touren: [] },
     ergo: { einheiten: [] },
     apotheke: { abgaben: [] },
+    kinderarzt: { patienten: [], besuche: [] }
   };
   localStorage.setItem(state.storeKey, JSON.stringify(seed));
   return seed;
 }
-function save() { localStorage.setItem(state.storeKey, JSON.stringify(STORE)); }
+function save(){ localStorage.setItem(state.storeKey, JSON.stringify(STORE)); }
 
-// ---------- Utilities ----------
-function today() { return new Date().toISOString().slice(0,10); }
-function toCSV(rows) {
-  if (!rows?.length) return "";
+function exportCSV(rows, name="export.csv"){
+  if (!rows?.length) { alert("Keine Daten zum Exportieren."); return; }
   const keys = [...new Set(rows.flatMap(r => Object.keys(r)))];
   const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  return [keys.map(esc).join(","), ...rows.map(r => keys.map(k => esc(r[k])).join(","))].join("\n");
-}
-function exportCSV(rows, name="export.csv") {
-  const blob = new Blob([toCSV(rows)], { type: "text/csv" });
+  const csv = [keys.map(esc).join(","), ...rows.map(r => keys.map(k => esc(r[k])).join(","))].join("\n");
+  const blob = new Blob([csv], { type:"text/csv" });
   const url = URL.createObjectURL(blob);
-  const a = ce("a", { href: url, download: name }); document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 500);
+  const a = ce("a", { href:url, download:name }); document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 300);
 }
-function exportJSON(obj, name="export.json") {
-  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
+function exportJSON(obj, name="export.json"){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type:"application/json" });
   const url = URL.createObjectURL(blob);
-  const a = ce("a", { href: url, download: name }); document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 500);
-}
-function badge(txt){ return `<span class="badge">${txt}</span>`; }
-function section(title, bodyHTML){ const d=ce("div",{className:"card"}); d.innerHTML=`<h3>${title}</h3>${bodyHTML||""}`; return d; }
-function info(title, text){ const d=ce("div",{className:"card"}); d.innerHTML=`<h2>${title}</h2><p class="muted">${text||""}</p>`; return d; }
-function emptyMsg(msg="Noch keine Daten."){ const p=ce("p",{className:"muted"}); p.textContent=msg; return p; }
-function selectOpts(arr, valKey, labelKey) {
-  return arr.map(o => `<option value="${o[valKey]}">${o[labelKey]}</option>`).join("");
+  const a = ce("a", { href:url, download:name }); document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 300);
 }
 
-// ---------- Header & Tabs ----------
 document.addEventListener("DOMContentLoaded", () => {
-  qs("#tabs").addEventListener("click", (e) => {
-    if (e.target.matches("button[data-page]")) {
-      qs("#tabs").querySelectorAll("button").forEach(b=>b.classList.remove("active"));
-      e.target.classList.add("active");
-      state.page = e.target.dataset.page;
-      render();
-    }
-  });
+  buildCompanyMenu();
+  render(); // initial
 
-  // Dropdown actions
+  // Sonstiges-Aktionen
   document.body.addEventListener("click", (e)=>{
     if (e.target.matches(".dropdown .menu button")) {
       const act = e.target.dataset.action;
       if (act==="seed") seedDemo();
       if (act==="export-json") exportJSON(STORE, "stiftung-export.json");
-      if (act==="print") window.print();
+      if (act==="dark") document.documentElement.classList.toggle("dark");
       if (act==="reset") {
         if (confirm("Wirklich alle lokalen Daten löschen?")) {
           localStorage.removeItem(state.storeKey); STORE = initStore(); render();
@@ -83,393 +82,446 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Dark mode toggle
-  const darkBtn = qs("#darkToggle");
-  const pref = localStorage.getItem("stiftung-dark");
-  if (pref === "1") document.documentElement.classList.add("dark");
-  darkBtn.addEventListener("click", () => {
-    document.documentElement.classList.toggle("dark");
-    localStorage.setItem("stiftung-dark", document.documentElement.classList.contains("dark") ? "1" : "0");
-  });
-
-  render();
+  // Druckansicht
+  qs("#printBtn").addEventListener("click", () => window.print());
 });
 
-// ---------- Render ----------
-function render() {
-  const app = qs("#app"); app.innerHTML = "";
-
-  if (state.page === "home") {
-    app.appendChild(info("Willkommen", `Wähle eine Einrichtung oder lade ${badge("Demo-Daten")} über „Daten ▾“ oben. Alle Einträge werden lokal gespeichert (localStorage).`));
-    const grid = ce("div", { className: "grid" });
-    [
-      ["verwaltung","Hand in Hand Verwaltung","Zentrale Infos & Vorlagen (Platzhalter)."],
-      ["kita","Die drei Löwen Kindergarten","Kinder, Beobachtungen, Anwesenheit, Elternkommunikation."],
-      ["krankenhaus","Mond-Krankenhaus","Aufnahme & Vitalwerte (Training, Platzhalter erweitert)."],
-      ["pflegeheim","Pflegeheim der Gemeinschaft","Bewohner, Pflegeberichte, Vitalwerte, Medigabe, Sturzmeldungen."],
-      ["ambulant","Ambulanter Pflegedienst zum Stern","Einfache Touren- & Einsatzdoku."],
-      ["ergo","Ergotherapeuten „Unart“","Befunde, Ziele, Einheiten (Training)."],
-      ["apotheke","Sonnen Apotheke","Abgabe-Übungen (Training)."]
-    ].forEach(([id, title, desc])=>{
-      const a = ce("a",{className:"kachel", href:"#", onclick:(e)=>{e.preventDefault(); switchTo(id);} });
-      a.innerHTML = `<div class="icon">★</div><div><strong>${title}</strong><div class="muted">${desc}</div></div>`;
-      grid.appendChild(a);
-    });
-    app.appendChild(grid);
-    return;
-  }
-
-  if (state.page === "verwaltung") {
-    app.appendChild(info("Hand in Hand Verwaltung", "Zentrale Verwaltung – hier später Richtlinien, Checklisten, Vorlagen."));
-    app.appendChild(section("Export / Backup", `
-      <div class="toolbar">
-        <button class="btn primary" onclick="exportJSON(STORE,'stiftung-export.json')">Als JSON exportieren</button>
-      </div>
-    `));
-    return;
-  }
-
-  if (state.page === "kita") return renderKita(app);
-  if (state.page === "pflegeheim") return renderPflege(app);
-  if (state.page === "krankenhaus") return renderKrankenhaus(app);
-  if (state.page === "ambulant") return renderAmbulant(app);
-  if (state.page === "ergo") return renderErgo(app);
-  if (state.page === "apotheke") return renderApotheke(app);
+function buildCompanyMenu(){
+  const menu = document.querySelector(".dropdown.mega .menu.grid");
+  menu.innerHTML = "";
+  PAGES.filter(p=>p.id!=="home").forEach(p=>{
+    const a = ce("a", { href:"#", className:"kachel" });
+    a.innerHTML = `<div class="icon">★</div><div><strong>${p.title}</strong><div class="muted">${p.slogan}</div></div>`;
+    a.onclick = (ev)=>{ ev.preventDefault(); switchTo(p.id); };
+    menu.appendChild(a);
+  });
 }
 
 function switchTo(id){
-  state.page=id;
-  qs("#tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("active", b.dataset.page===id));
+  state.page = id;
   render();
 }
 
-// ---------- KITA ----------
+function render(){
+  const page = PAGES.find(p=>p.id===state.page) || PAGES[0];
+
+  // Hero
+  const hero = qs("#hero");
+  hero.innerHTML = `
+    <div class="card">
+      <h1>${page.title}</h1>
+      <p>${page.slogan}</p>
+    </div>
+  `;
+
+  // Main content
+  const app = qs("#app"); app.innerHTML = "";
+  if (page.id==="home") return renderHome(app);
+  if (page.id==="verwaltung") return renderVerwaltung(app);
+  if (page.id==="kita") return renderKita(app);
+  if (page.id==="pflegeheim") return renderPflege(app);
+  if (page.id==="krankenhaus") return renderKrankenhaus(app);
+  if (page.id==="ambulant") return renderAmbulant(app);
+  if (page.id==="ergo") return renderErgo(app);
+  if (page.id==="apotheke") return renderApotheke(app);
+  if (page.id==="kinderarzt") return renderKinderarzt(app);
+}
+
+/* ---------- Seiten ---------- */
+function renderHome(app){
+  // Infotext
+  const info = ce("div",{className:"card"});
+  info.innerHTML = `
+    <h2>Liebe Mitarbeitenden,</h2>
+    <p class="muted">
+      es ist uns eine große Freude, euch als Team in unserer Unternehmensgruppe willkommen zu heißen.
+      Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und vollständig lokal gespeichert.
+      Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten.
+    </p>`;
+  app.appendChild(info);
+
+  // Kacheln zu allen Unternehmen
+  const grid = ce("div",{className:"grid"});
+  PAGES.filter(p=>p.id!=="home").forEach(p=>{
+    const a = ce("a",{href:"#", className:"kachel"});
+    a.innerHTML = `<div class="icon">★</div><div><strong>${p.title}</strong><div class="muted">${p.slogan}</div></div>`;
+    a.onclick = (ev)=>{ ev.preventDefault(); switchTo(p.id); };
+    grid.appendChild(a);
+  });
+  app.appendChild(grid);
+}
+
+function renderVerwaltung(app){
+  app.appendChild(cardInfo("Hinweis",
+    "Zentrale Verwaltung: Hier können später Richtlinien, Checklisten und Vorlagen liegen (Training/Platzhalter)."));
+
+  const tools = ce("div",{className:"card"});
+  tools.innerHTML = `
+    <h3>Werkzeuge</h3>
+    <div class="toolbar">
+      <button class="btn primary" onclick="exportJSON(STORE,'stiftung-export.json')">Gesamtexport (JSON)</button>
+    </div>`;
+  app.appendChild(tools);
+}
+
+/* ---------- Kita ---------- */
 function renderKita(app){
-  app.appendChild(info("Die drei Löwen Kindergarten", "Dokumentation für Trainingszwecke. Keine echten Personendaten verwenden."));
+  app.appendChild(cardInfo("Info",
+    "Die drei Löwen Kindergarten: Bitte nur Übungsdaten verwenden. Alle Einträge werden lokal gespeichert."));
 
   // Kinder
-  const kinder = ce("div",{className:"card"});
-  kinder.innerHTML = `<h3>Kinder</h3>`;
-  if (!STORE.kita.kinder.length) kinder.appendChild(emptyMsg("Noch keine Kinder angelegt."));
-  STORE.kita.kinder.forEach(k=>{
-    const line = ce("div"); line.innerHTML = `<strong>${k.vorname} ${k.nachname}</strong> — geb. ${k.geburtstag||"—"} ${k.gruppe?badge(k.gruppe):""}`;
-    kinder.appendChild(line);
-  });
-  const f1 = ce("form");
-  f1.innerHTML = `
-    <label>Vorname<input name="vorname" required></label>
-    <label>Nachname<input name="nachname" required></label>
-    <label>Geburtstag<input type="date" name="geburtstag"></label>
-    <label>Gruppe<input name="gruppe" placeholder="Sonnen / Sterne / Löwen …"></label>
-    <button class="btn primary" style="margin-top:10px">Kind hinzufügen</button>`;
-  f1.onsubmit = (e)=>{ e.preventDefault(); STORE.kita.kinder.push(Object.fromEntries(new FormData(f1))); save(); render(); };
-  kinder.appendChild(f1);
-  app.appendChild(kinder);
+  app.appendChild(listFormCard({
+    title:"Kinder",
+    list: STORE.kita.kinder,
+    renderLine: k => `<strong>${k.vorname} ${k.nachname}</strong> — geb. ${k.geburtstag||"—"} ${k.gruppe?badge(k.gruppe):""}`,
+    formHTML: `
+      ${input("Vorname","vorname",true)}
+      ${input("Nachname","nachname",true)}
+      ${input("Geburtstag","geburtstag",false,"date")}
+      ${input("Gruppe","gruppe",false,"text","Sonnen / Sterne / Löwen …")}
+    `,
+    onSubmit: data => { STORE.kita.kinder.push(data); save(); }
+  }));
 
   // Beobachtungen
-  const beob = ce("div",{className:"card"});
-  beob.innerHTML = `<h3>Beobachtungen</h3>`;
-  if (!STORE.kita.beobachtungen.length) beob.appendChild(emptyMsg());
-  STORE.kita.beobachtungen.forEach(b=>{
-    const line = ce("div"); line.innerHTML = `<strong>${b.kindId}</strong> • ${b.bereich||"—"} — <em>${b.datum||"—"}</em><br>${b.text||"—"}`;
-    beob.appendChild(line);
-  });
-  const f2 = ce("form");
-  f2.innerHTML = `
-    <label>Kind
-      <select name="kindId">
-        ${STORE.kita.kinder.map(k=>`<option value="${k.vorname} ${k.nachname}">${k.vorname} ${k.nachname}</option>`).join("")}
-      </select>
-    </label>
-    <label>Datum<input type="date" name="datum" value="${today()}"></label>
-    <label>Bereich
-      <select name="bereich">
-        <option>Sprache</option><option>Motorik</option><option>Sozial</option><option>Kognition</option><option>Emotional</option>
-      </select>
-    </label>
-    <label>Text<textarea name="text"></textarea></label>
-    <div class="toolbar">
-      <button class="btn primary">Beobachtung speichern</button>
-      <button type="button" class="btn" onclick="exportCSV(STORE.kita.beobachtungen,'kita-beobachtungen.csv')">CSV exportieren</button>
-    </div>`;
-  f2.onsubmit=(e)=>{ e.preventDefault(); STORE.kita.beobachtungen.push(Object.fromEntries(new FormData(f2))); save(); render(); };
-  beob.appendChild(f2);
-  app.appendChild(beob);
+  app.appendChild(listFormCard({
+    title:"Beobachtungen",
+    list: STORE.kita.beobachtungen,
+    renderLine: b => `<strong>${b.kindId}</strong> • ${b.bereich||"—"} — <em>${b.datum||"—"}</em><br>${b.text||"—"}`,
+    formHTML: `
+      ${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}
+      ${input("Datum","datum",false,"date",today())}
+      ${select("Bereich","bereich", ["Sprache","Motorik","Sozial","Kognition","Emotional"])}
+      ${textarea("Text","text")}
+      <div class="toolbar">
+        <button class="btn primary" type="submit">Speichern</button>
+        <button class="btn" type="button" onclick="exportCSV(STORE.kita.beobachtungen,'kita-beobachtungen.csv')">CSV exportieren</button>
+      </div>
+    `,
+    onSubmit: data => { STORE.kita.beobachtungen.push(data); save(); }
+  }));
 
   // Anwesenheit
-  const anwv = ce("div",{className:"card"});
-  anwv.innerHTML = `<h3>Anwesenheit</h3>`;
-  if (!STORE.kita.anwesenheit.length) anwv.appendChild(emptyMsg());
-  STORE.kita.anwesenheit.forEach(a=>{
-    const line = ce("div"); line.innerHTML = `<strong>${a.kindId}</strong> — ${a.status||"—"} am <em>${a.datum||"—"}</em> ${a.abholer?("• Abholer: "+a.abholer):""}`;
-    anwv.appendChild(line);
-  });
-  const f3 = ce("form");
-  f3.innerHTML = `
-    <label>Kind
-      <select name="kindId">
-        ${STORE.kita.kinder.map(k=>`<option value="${k.vorname} ${k.nachname}">${k.vorname} ${k.nachname}</option>`).join("")}
-      </select>
-    </label>
-    <label>Datum<input type="date" name="datum" value="${today()}"></label>
-    <label>Status
-      <select name="status"><option>anwesend</option><option>abwesend</option></select>
-    </label>
-    <label>Abholer (optional)<input name="abholer" placeholder="Mutter / Vater / Oma …"></label>
-    <div class="toolbar">
-      <button class="btn primary">Eintrag speichern</button>
-      <button type="button" class="btn" onclick="exportCSV(STORE.kita.anwesenheit,'kita-anwesenheit.csv')">CSV exportieren</button>
-    </div>`;
-  f3.onsubmit=(e)=>{ e.preventDefault(); STORE.kita.anwesenheit.push(Object.fromEntries(new FormData(f3))); save(); render(); };
-  anwv.appendChild(f3);
-  app.appendChild(anwv);
+  app.appendChild(listFormCard({
+    title:"Anwesenheit",
+    list: STORE.kita.anwesenheit,
+    renderLine: a => `<strong>${a.kindId}</strong> — ${a.status||"—"} am <em>${a.datum||"—"}</em> ${a.abholer?("• Abholer: "+a.abholer):""}`,
+    formHTML: `
+      ${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}
+      ${input("Datum","datum",false,"date",today())}
+      ${select("Status","status", ["anwesend","abwesend"])}
+      ${input("Abholer (optional)","abholer",false)}
+      <div class="toolbar">
+        <button class="btn primary" type="submit">Speichern</button>
+        <button class="btn" type="button" onclick="exportCSV(STORE.kita.anwesenheit,'kita-anwesenheit.csv')">CSV exportieren</button>
+      </div>
+    `,
+    onSubmit: data => { STORE.kita.anwesenheit.push(data); save(); }
+  }));
 
   // Elternkommunikation
-  const eltern = ce("div",{className:"card"});
-  eltern.innerHTML = `<h3>Elternkommunikation</h3>`;
-  if (!STORE.kita.eltern.length) eltern.appendChild(emptyMsg());
-  STORE.kita.eltern.forEach(x=>{
-    const line = ce("div"); line.innerHTML = `<strong>${x.kindId}</strong> • ${x.kanal||"—"} — <em>${x.datum||"—"}</em><br>${x.inhalt||"—"}`;
-    eltern.appendChild(line);
-  });
-  const f4 = ce("form");
-  f4.innerHTML = `
-    <label>Kind
-      <select name="kindId">
-        ${STORE.kita.kinder.map(k=>`<option value="${k.vorname} ${k.nachname}">${k.vorname} ${k.nachname}</option>`).join("")}
-      </select>
-    </label>
-    <label>Datum<input type="date" name="datum" value="${today()}"></label>
-    <label>Kanal
-      <select name="kanal"><option>Tür-und-Angel</option><option>Telefon</option><option>E-Mail</option><option>Elterngespräch</option></select>
-    </label>
-    <label>Inhalt<textarea name="inhalt"></textarea></label>
-    <div class="toolbar">
-      <button class="btn primary">Eintrag speichern</button>
-      <button type="button" class="btn" onclick="exportCSV(STORE.kita.eltern,'kita-elternkommunikation.csv')">CSV exportieren</button>
-    </div>`;
-  f4.onsubmit=(e)=>{ e.preventDefault(); STORE.kita.eltern.push(Object.fromEntries(new FormData(f4))); save(); render(); };
-  eltern.appendChild(f4);
-  app.appendChild(eltern);
+  app.appendChild(listFormCard({
+    title:"Elternkommunikation",
+    list: STORE.kita.eltern,
+    renderLine: x => `<strong>${x.kindId}</strong> • ${x.kanal||"—"} — <em>${x.datum||"—"}</em><br>${x.inhalt||"—"}`,
+    formHTML: `
+      ${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}
+      ${input("Datum","datum",false,"date",today())}
+      ${select("Kanal","kanal", ["Tür-und-Angel","Telefon","E-Mail","Elterngespräch"])}
+      ${textarea("Inhalt","inhalt")}
+      <div class="toolbar">
+        <button class="btn primary" type="submit">Speichern</button>
+        <button class="btn" type="button" onclick="exportCSV(STORE.kita.eltern,'kita-elternkommunikation.csv')">CSV exportieren</button>
+      </div>
+    `,
+    onSubmit: data => { STORE.kita.eltern.push(data); save(); }
+  }));
 }
 
-// ---------- PFLEGE ----------
+/* ---------- Pflegeheim ---------- */
 function renderPflege(app){
-  app.appendChild(info("Pflegeheim der Gemeinschaft", "Training: Bewohner, Pflegeberichte, Vitalwerte, Medigabe (Übung), Sturzmeldungen."));
+  app.appendChild(cardInfo("Info",
+    "Pflegeheim der Gemeinschaft: Training für Bewohner, Berichte, Vitalwerte, Medigabe (nur Übung!) und Sturzmeldungen."));
 
   // Bewohner
-  const bw = section("Bewohner", "");
-  if (!STORE.pflege.bewohner.length) bw.appendChild(emptyMsg());
-  STORE.pflege.bewohner.forEach(p=>{
-    const d=ce("div"); d.innerHTML=`<strong>${p.vorname} ${p.nachname}</strong> — geb. ${p.geburt||"—"} ${p.zimmer?badge("Zimmer "+p.zimmer):""} ${p.pflegegrad?badge("PG "+p.pflegegrad):""}`;
-    bw.appendChild(d);
-  });
-  const f1 = ce("form"); f1.innerHTML = `
-    <label>Vorname<input name="vorname" required></label>
-    <label>Nachname<input name="nachname" required></label>
-    <label>Geburt<input type="date" name="geburt"></label>
-    <label>Zimmer<input name="zimmer"></label>
-    <label>Pflegegrad<input type="number" name="pflegegrad" min="1" max="5"></label>
-    <button class="btn primary" style="margin-top:10px">Bewohner hinzufügen</button>`;
-  f1.onsubmit=(e)=>{e.preventDefault(); const o=Object.fromEntries(new FormData(f1)); o.pflegegrad=o.pflegegrad?Number(o.pflegegrad):undefined; STORE.pflege.bewohner.push(o); save(); render();};
-  bw.appendChild(f1);
-  app.appendChild(bw);
+  app.appendChild(listFormCard({
+    title:"Bewohner",
+    list: STORE.pflege.bewohner,
+    renderLine: p => `<strong>${p.vorname} ${p.nachname}</strong> — geb. ${p.geburt||"—"} ${p.zimmer?badge("Zimmer "+p.zimmer):""} ${p.pflegegrad?badge("PG "+p.pflegegrad):""}`,
+    formHTML: `
+      ${input("Vorname","vorname",true)}
+      ${input("Nachname","nachname",true)}
+      ${input("Geburt","geburt",false,"date")}
+      ${input("Zimmer","zimmer",false)}
+      ${input("Pflegegrad","pflegegrad",false,"number")}
+    `,
+    onSubmit: data => { if(data.pflegegrad) data.pflegegrad=Number(data.pflegegrad); STORE.pflege.bewohner.push(data); save(); }
+  }));
 
-  // Pflegeberichte
-  const pb = section("Pflegeberichte", "");
-  if (!STORE.pflege.berichte.length) pb.appendChild(emptyMsg());
-  STORE.pflege.berichte.forEach(b=>{
-    const d=ce("div"); d.innerHTML=`<strong>${b.bewohnerId}</strong> • ${b.bereich||"—"} — <em>${b.datum||"—"}</em><br>${b.text||"—"}`;
-    pb.appendChild(d);
-  });
-  const f2 = ce("form"); f2.innerHTML = `
-    <label>Bewohner
-      <select name="bewohnerId">${STORE.pflege.bewohner.map(p=>`<option>${p.vorname} ${p.nachname}</option>`).join("")}</select>
-    </label>
-    <label>Datum<input type="date" name="datum" value="${today()}"></label>
-    <label>Bereich
-      <select name="bereich">
-        <option>ATL: Atmen</option><option>ATL: Sich bewegen</option><option>ATL: Essen/Trinken</option>
-        <option>AEDL: Ruhen/Schlafen</option><option>ASE: Wahrnehmung</option>
-      </select>
-    </label>
-    <label>Text (objektiv/subjektiv/Plan/Evaluation)<textarea name="text"></textarea></label>
-    <div class="toolbar">
-      <button class="btn primary">Bericht speichern</button>
-      <button type="button" class="btn" onclick="exportCSV(STORE.pflege.berichte,'pflege-berichte.csv')">CSV exportieren</button>
-    </div>`;
-  f2.onsubmit=(e)=>{e.preventDefault(); STORE.pflege.berichte.push(Object.fromEntries(new FormData(f2))); save(); render();};
-  pb.appendChild(f2);
-  app.appendChild(pb);
+  // Berichte
+  app.appendChild(listFormCard({
+    title:"Pflegeberichte",
+    list: STORE.pflege.berichte,
+    renderLine: b => `<strong>${b.bewohnerId}</strong> • ${b.bereich||"—"} — <em>${b.datum||"—"}</em><br>${b.text||"—"}`,
+    formHTML: `
+      ${select("Bewohner","bewohnerId", STORE.pflege.bewohner.map(p=>`${p.vorname} ${p.nachname}`))}
+      ${input("Datum","datum",false,"date",today())}
+      ${select("Bereich","bereich", ["ATL: Atmen","ATL: Sich bewegen","ATL: Essen/Trinken","AEDL: Ruhen/Schlafen","ASE: Wahrnehmung"])}
+      ${textarea("Text (objektiv/subjektiv/Plan/Evaluation)","text")}
+      <div class="toolbar">
+        <button class="btn primary" type="submit">Speichern</button>
+        <button class="btn" type="button" onclick="exportCSV(STORE.pflege.berichte,'pflege-berichte.csv')">CSV exportieren</button>
+      </div>
+    `,
+    onSubmit: data => { STORE.pflege.berichte.push(data); save(); }
+  }));
 
   // Vitalwerte
-  const vv = section("Vitalwerte", "");
-  if (!STORE.pflege.vitals.length) vv.appendChild(emptyMsg());
-  STORE.pflege.vitals.forEach(v=>{
-    const d=ce("div"); d.innerHTML=`<strong>${v.bewohnerId}</strong> — ${v.puls||"?"}/min, RR ${v.rr||"?"}, Temp ${v.temp||"?"}°C, SpO₂ ${v.spo2||"?"}% <em>(${v.datum||"—"})</em>`;
-    vv.appendChild(d);
-  });
-  const f3 = ce("form"); f3.innerHTML = `
-    <label>Bewohner
-      <select name="bewohnerId">${STORE.pflege.bewohner.map(p=>`<option>${p.vorname} ${p.nachname}</option>`).join("")}</select>
-    </label>
-    <label>Datum<input type="date" name="datum" value="${today()}"></label>
-    <label>Puls (/min)<input type="number" name="puls"></label>
-    <label>RR (z. B. 120/80)<input name="rr" placeholder="120/80"></label>
-    <label>Temperatur (°C)<input type="number" step="0.1" name="temp"></label>
-    <label>SpO₂ (%)<input type="number" name="spo2"></label>
-    <div class="toolbar">
-      <button class="btn primary">Werte speichern</button>
-      <button type="button" class="btn" onclick="exportCSV(STORE.pflege.vitals,'pflege-vitalwerte.csv')">CSV exportieren</button>
-    </div>`;
-  f3.onsubmit=(e)=>{e.preventDefault(); const o=Object.fromEntries(new FormData(f3)); ["puls","temp","spo2"].forEach(k=>o[k]=o[k]?Number(o[k]):undefined); STORE.pflege.vitals.push(o); save(); render();};
-  vv.appendChild(f3);
-  app.appendChild(vv);
+  app.appendChild(listFormCard({
+    title:"Vitalwerte",
+    list: STORE.pflege.vitals,
+    renderLine: v => `<strong>${v.bewohnerId}</strong> — ${v.puls||"?"}/min, RR ${v.rr||"?"}, ${v.temp||"?"}°C, SpO₂ ${v.spo2||"?"}% <em>(${v.datum||"—"})</em>`,
+    formHTML: `
+      ${select("Bewohner","bewohnerId", STORE.pflege.bewohner.map(p=>`${p.vorname} ${p.nachname}`))}
+      ${input("Datum","datum",false,"date",today())}
+      ${input("Puls (/min)","puls",false,"number")}
+      ${input("RR (z. B. 120/80)","rr")}
+      ${input("Temperatur (°C)","temp",false,"number","",{"step":"0.1"})}
+      ${input("SpO₂ (%)","spo2",false,"number")}
+      <div class="toolbar">
+        <button class="btn primary" type="submit">Speichern</button>
+        <button class="btn" type="button" onclick="exportCSV(STORE.pflege.vitals,'pflege-vitalwerte.csv')">CSV exportieren</button>
+      </div>
+    `,
+    onSubmit: data => {
+      ["puls","temp","spo2"].forEach(k=>data[k]=data[k]?Number(data[k]):undefined);
+      STORE.pflege.vitals.push(data); save();
+    }
+  }));
 
   // Medigabe (Training)
-  const mg = section("Medigabe – Trainingszwecke", "");
-  if (!STORE.pflege.medis.length) mg.appendChild(emptyMsg());
-  STORE.pflege.medis.forEach(m=>{
-    const d=ce("div"); d.innerHTML=`<strong>${m.bewohnerId}</strong> — ${m.medikament||"—"} um ${m.uhrzeit||"—"} • ${m.status||"—"} <em>(${m.datum||"—"})</em> ${m.bemerkung?("<br>"+m.bemerkung):""}`;
-    mg.appendChild(d);
-  });
-  const f4 = ce("form"); f4.innerHTML = `
-    <label>Bewohner
-      <select name="bewohnerId">${STORE.pflege.bewohner.map(p=>`<option>${p.vorname} ${p.nachname}</option>`).join("")}</select>
-    </label>
-    <label>Datum<input type="date" name="datum" value="${today()}"></label>
-    <label>Medikament (Platzhalter)<input name="medikament" placeholder="z. B. Metoprolol 47,5 mg"></label>
-    <label>Uhrzeit<input type="time" name="uhrzeit" value="08:00"></label>
-    <label>Status<select name="status"><option>gegeben</option><option>nicht gegeben</option></select></label>
-    <label>Bemerkung<textarea name="bemerkung" placeholder="Training: keine echten Medigaben dokumentieren!"></textarea></label>
-    <div class="toolbar">
-      <button class="btn primary">Eintrag speichern</button>
-      <button type="button" class="btn" onclick="exportCSV(STORE.pflege.medis,'pflege-medigabe.csv')">CSV exportieren</button>
-    </div>`;
-  f4.onsubmit=(e)=>{e.preventDefault(); STORE.pflege.medis.push(Object.fromEntries(new FormData(f4))); save(); render();};
-  mg.appendChild(f4);
-  app.appendChild(mg);
+  app.appendChild(listFormCard({
+    title:"Medigabe – Trainingszwecke",
+    list: STORE.pflege.medis,
+    renderLine: m => `<strong>${m.bewohnerId}</strong> — ${m.medikament||"—"} um ${m.uhrzeit||"—"} • ${m.status||"—"} <em>(${m.datum||"—"})</em>${m.bemerkung?("<br>"+m.bemerkung):""}`,
+    formHTML: `
+      ${select("Bewohner","bewohnerId", STORE.pflege.bewohner.map(p=>`${p.vorname} ${p.nachname}`))}
+      ${input("Datum","datum",false,"date",today())}
+      ${input("Medikament (Platzhalter)","medikament")}
+      ${input("Uhrzeit","uhrzeit",false,"time","08:00")}
+      ${select("Status","status", ["gegeben","nicht gegeben"])}
+      ${textarea("Bemerkung","bemerkung","Training: keine echten Medigaben dokumentieren!")}
+      <div class="toolbar">
+        <button class="btn primary" type="submit">Speichern</button>
+        <button class="btn" type="button" onclick="exportCSV(STORE.pflege.medis,'pflege-medigabe.csv')">CSV exportieren</button>
+      </div>
+    `,
+    onSubmit: data => { STORE.pflege.medis.push(data); save(); }
+  }));
 
   // Sturzmeldungen
-  const st = section("Sturzmeldungen", "");
-  if (!STORE.pflege.sturz.length) st.appendChild(emptyMsg());
-  STORE.pflege.sturz.forEach(s=>{
-    const d=ce("div"); d.innerHTML=`<strong>${s.bewohnerId}</strong> — ${s.ort||"—"} am <em>${s.datum||"—"}</em><br>Folgen: ${s.folgen||"—"} • Arzt: ${s.arzt||"—"} • Meldung: ${s.meldung||"—"}`;
-    st.appendChild(d);
-  });
-  const f5 = ce("form"); f5.innerHTML = `
-    <label>Bewohner
-      <select name="bewohnerId">${STORE.pflege.bewohner.map(p=>`<option>${p.vorname} ${p.nachname}</option>`).join("")}</select>
-    </label>
-    <label>Datum<input type="date" name="datum" value="${today()}"></label>
-    <label>Ort<input name="ort" placeholder="Bad, Zimmer, Flur …"></label>
-    <label>Folgen<textarea name="folgen"></textarea></label>
-    <label>Arzt informiert?<select name="arzt"><option>ja</option><option>nein</option></select></label>
-    <label>Meldung/Infofluss<textarea name="meldung" placeholder="Team/Angehörige informiert …"></textarea></label>
-    <div class="toolbar">
-      <button class="btn primary">Meldung speichern</button>
-      <button type="button" class="btn" onclick="exportCSV(STORE.pflege.sturz,'pflege-sturzmeldungen.csv')">CSV exportieren</button>
-    </div>`;
-  f5.onsubmit=(e)=>{e.preventDefault(); STORE.pflege.sturz.push(Object.fromEntries(new FormData(f5))); save(); render();};
-  st.appendChild(f5);
-  app.appendChild(st);
+  app.appendChild(listFormCard({
+    title:"Sturzmeldungen",
+    list: STORE.pflege.sturz,
+    renderLine: s => `<strong>${s.bewohnerId}</strong> — ${s.ort||"—"} am <em>${s.datum||"—"}</em><br>Folgen: ${s.folgen||"—"} • Arzt: ${s.arzt||"—"} • Meldung: ${s.meldung||"—"}`,
+    formHTML: `
+      ${select("Bewohner","bewohnerId", STORE.pflege.bewohner.map(p=>`${p.vorname} ${p.nachname}`))}
+      ${input("Datum","datum",false,"date",today())}
+      ${input("Ort","ort",false,"text","Bad, Zimmer, Flur …")}
+      ${textarea("Folgen","folgen")}
+      ${select("Arzt informiert?","arzt", ["ja","nein"])}
+      ${textarea("Meldung/Infofluss","meldung","Team/Angehörige informiert …")}
+      <div class="toolbar">
+        <button class="btn primary" type="submit">Speichern</button>
+        <button class="btn" type="button" onclick="exportCSV(STORE.pflege.sturz,'pflege-sturzmeldungen.csv')">CSV exportieren</button>
+      </div>
+    `,
+    onSubmit: data => { STORE.pflege.sturz.push(data); save(); }
+  }));
 }
 
-// ---------- Krankenhaus (Platzhalter mit Formularen) ----------
+/* ---------- Krankenhaus ---------- */
 function renderKrankenhaus(app){
-  app.appendChild(info("Mond-Krankenhaus", "Einfache Aufnahme & Vitalwerte – Trainingszwecke."));
+  app.appendChild(cardInfo("Info",
+    "Mond-Krankenhaus: Einfache Aufnahme & Vitalwerte als Trainingsbeispiel."));
+
   // Aufnahme
-  const auf = section("Aufnahme", "");
-  const f1 = ce("form"); f1.innerHTML = `
-    <label>Patientenname<input name="name" required></label>
-    <label>Geburt<input type="date" name="geburt"></label>
-    <label>Fachbereich<select name="fach"><option>Innere</option><option>Chirurgie</option><option>Geriatrie</option></select></label>
-    <label>Aufnahmedatum<input type="date" name="datum" value="${today()}"></label>
-    <button class="btn primary" style="margin-top:10px">Aufnahme speichern</button>`;
-  const list = ce("div"); if (!STORE.krankenhaus.patienten.length) list.appendChild(emptyMsg());
-  STORE.krankenhaus.patienten.forEach(p=>{ const d=ce("div"); d.innerHTML=`<strong>${p.name}</strong> — ${p.fach||"—"} • ${p.datum||"—"}`; list.appendChild(d); });
-  f1.onsubmit=(e)=>{e.preventDefault(); STORE.krankenhaus.patienten.push(Object.fromEntries(new FormData(f1))); save(); render();};
-  auf.appendChild(list); auf.appendChild(f1); app.appendChild(auf);
+  app.appendChild(listFormCard({
+    title:"Aufnahme",
+    list: STORE.krankenhaus.patienten,
+    renderLine: p => `<strong>${p.name}</strong> — ${p.fach||"—"} • ${p.datum||"—"}`,
+    formHTML: `
+      ${input("Patientenname","name",true)}
+      ${input("Geburt","geburt",false,"date")}
+      ${select("Fachbereich","fach", ["Innere","Chirurgie","Geriatrie"])}
+      ${input("Aufnahmedatum","datum",false,"date",today())}
+    `,
+    onSubmit: data => { STORE.krankenhaus.patienten.push(data); save(); }
+  }));
 
   // Vitalwerte
-  const vv = section("Vitalwerte", "");
-  const f2 = ce("form"); f2.innerHTML = `
-    <label>Patient<select name="pat">${STORE.krankenhaus.patienten.map(p=>`<option>${p.name}</option>`).join("")}</select></label>
-    <label>Datum<input type="date" name="datum" value="${today()}"></label>
-    <label>Puls (/min)<input type="number" name="puls"></label>
-    <label>RR<input name="rr" placeholder="120/80"></label>
-    <label>Temp (°C)<input type="number" step="0.1" name="temp"></label>
-    <label>SpO₂ (%)<input type="number" name="spo2"></label>
-    <div class="toolbar">
-      <button class="btn primary">Werte speichern</button>
-      <button type="button" class="btn" onclick="exportCSV(STORE.krankenhaus.vitals,'kh-vitalwerte.csv')">CSV exportieren</button>
-    </div>`;
-  const list2 = ce("div"); if (!STORE.krankenhaus.vitals.length) list2.appendChild(emptyMsg());
-  STORE.krankenhaus.vitals.forEach(v=>{ const d=ce("div"); d.innerHTML=`<strong>${v.pat}</strong> — ${v.puls||"?"}/min, RR ${v.rr||"?"}, ${v.temp||"?"}°C, SpO₂ ${v.spo2||"?"}% (${v.datum||"—"})`; list2.appendChild(d); });
-  f2.onsubmit=(e)=>{e.preventDefault(); const o=Object.fromEntries(new FormData(f2)); ["puls","temp","spo2"].forEach(k=>o[k]=o[k]?Number(o[k]):undefined); STORE.krankenhaus.vitals.push(o); save(); render();};
-  vv.appendChild(list2); vv.appendChild(f2); app.appendChild(vv);
+  app.appendChild(listFormCard({
+    title:"Vitalwerte",
+    list: STORE.krankenhaus.vitals,
+    renderLine: v => `<strong>${v.pat}</strong> — ${v.puls||"?"}/min, RR ${v.rr||"?"}, ${v.temp||"?"}°C, SpO₂ ${v.spo2||"?"}% (${v.datum||"—"})`,
+    formHTML: `
+      ${select("Patient","pat", STORE.krankenhaus.patienten.map(p=>p.name))}
+      ${input("Datum","datum",false,"date",today())}
+      ${input("Puls (/min)","puls",false,"number")}
+      ${input("RR","rr",false,"text","120/80")}
+      ${input("Temp (°C)","temp",false,"number","",{"step":"0.1"})}
+      ${input("SpO₂ (%)","spo2",false,"number")}
+      <div class="toolbar">
+        <button class="btn primary" type="submit">Speichern</button>
+        <button class="btn" type="button" onclick="exportCSV(STORE.krankenhaus.vitals,'kh-vitalwerte.csv')">CSV exportieren</button>
+      </div>
+    `,
+    onSubmit: data => { ["puls","temp","spo2"].forEach(k=>data[k]=data[k]?Number(data[k]):undefined); STORE.krankenhaus.vitals.push(data); save(); }
+  }));
 }
 
-// ---------- Ambulant ----------
+/* ---------- Ambulant ---------- */
 function renderAmbulant(app){
-  app.appendChild(info("Ambulanter Pflegedienst zum Stern", "Einfache Touren- und Einsatzdokumentation (Training)."));
-  const t = section("Touren", "");
-  const list = ce("div"); if (!STORE.ambulant.touren.length) list.appendChild(emptyMsg());
-  STORE.ambulant.touren.forEach(x=>{ const d=ce("div"); d.innerHTML=`<strong>${x.klient}</strong> — ${x.leistung||"—"} am <em>${x.datum||"—"}</em> • Zeit: ${x.von||"--"}–${x.bis||"--"}`; list.appendChild(d); });
-  const f = ce("form"); f.innerHTML = `
-    <label>Klient<input name="klient" required></label>
-    <label>Datum<input type="date" name="datum" value="${today()}"></label>
-    <label>Leistung<input name="leistung" placeholder="z. B. SGB XI LK …"></label>
-    <label>Von<input type="time" name="von" value="08:00"></label>
-    <label>Bis<input type="time" name="bis" value="08:30"></label>
-    <div class="toolbar">
-      <button class="btn primary">Einsatz speichern</button>
-      <button type="button" class="btn" onclick="exportCSV(STORE.ambulant.touren,'ambulant-touren.csv')">CSV exportieren</button>
-    </div>`;
-  f.onsubmit=(e)=>{e.preventDefault(); STORE.ambulant.touren.push(Object.fromEntries(new FormData(f))); save(); render();};
-  t.appendChild(list); t.appendChild(f); app.appendChild(t);
+  app.appendChild(cardInfo("Info",
+    "Ambulanter Pflegedienst zum Stern: Einfache Touren- & Einsatzdoku (Training)."));
+
+  app.appendChild(listFormCard({
+    title:"Touren",
+    list: STORE.ambulant.touren,
+    renderLine: x => `<strong>${x.klient}</strong> — ${x.leistung||"—"} am <em>${x.datum||"—"}</em> • Zeit: ${x.von||"--"}–${x.bis||"--"}`,
+    formHTML: `
+      ${input("Klient","klient",true)}
+      ${input("Datum","datum",false,"date",today())}
+      ${input("Leistung","leistung",false,"text","z. B. SGB XI LK …")}
+      ${input("Von","von",false,"time","08:00")}
+      ${input("Bis","bis",false,"time","08:30")}
+      <div class="toolbar">
+        <button class="btn primary" type="submit">Speichern</button>
+        <button class="btn" type="button" onclick="exportCSV(STORE.ambulant.touren,'ambulant-touren.csv')">CSV exportieren</button>
+      </div>
+    `,
+    onSubmit: data => { STORE.ambulant.touren.push(data); save(); }
+  }));
 }
 
-// ---------- Ergo ----------
+/* ---------- Ergo ---------- */
 function renderErgo(app){
-  app.appendChild(info("Ergotherapeuten „Unart“", "Einheiten & Ziele – Trainingszwecke."));
-  const s = section("Einheiten", "");
-  const list = ce("div"); if (!STORE.ergo.einheiten.length) list.appendChild(emptyMsg());
-  STORE.ergo.einheiten.forEach(x=>{ const d=ce("div"); d.innerHTML=`<strong>${x.klient}</strong> — Ziel: ${x.ziel||"—"} • <em>${x.datum||"—"}</em><br>${x.inhalt||"—"}`; list.appendChild(d); });
-  const f = ce("form"); f.innerHTML = `
-    <label>Klient<input name="klient" required></label>
-    <label>Datum<input type="date" name="datum" value="${today()}"></label>
-    <label>Ziel<input name="ziel" placeholder="Feinmotorik, ADL, Kognition …"></label>
-    <label>Inhalt/Übung<textarea name="inhalt"></textarea></label>
-    <div class="toolbar">
-      <button class="btn primary">Einheit speichern</button>
-      <button type="button" class="btn" onclick="exportCSV(STORE.ergo.einheiten,'ergo-einheiten.csv')">CSV exportieren</button>
-    </div>`;
-  f.onsubmit=(e)=>{e.preventDefault(); STORE.ergo.einheiten.push(Object.fromEntries(new FormData(f))); save(); render();};
-  s.appendChild(list); s.appendChild(f); app.appendChild(s);
+  app.appendChild(cardInfo("Info",
+    "Ergotherapeuten „Unart“: Einheiten & Ziele – Trainingszwecke."));
+
+  app.appendChild(listFormCard({
+    title:"Einheiten",
+    list: STORE.ergo.einheiten,
+    renderLine: x => `<strong>${x.klient}</strong> — Ziel: ${x.ziel||"—"} • <em>${x.datum||"—"}</em><br>${x.inhalt||"—"}`,
+    formHTML: `
+      ${input("Klient","klient",true)}
+      ${input("Datum","datum",false,"date",today())}
+      ${input("Ziel","ziel",false,"text","Feinmotorik, ADL, Kognition …")}
+      ${textarea("Inhalt/Übung","inhalt")}
+      <div class="toolbar">
+        <button class="btn primary" type="submit">Speichern</button>
+        <button class="btn" type="button" onclick="exportCSV(STORE.ergo.einheiten,'ergo-einheiten.csv')">CSV exportieren</button>
+      </div>
+    `,
+    onSubmit: data => { STORE.ergo.einheiten.push(data); save(); }
+  }));
 }
 
-// ---------- Apotheke ----------
+/* ---------- Apotheke ---------- */
 function renderApotheke(app){
-  app.appendChild(info("Sonnen Apotheke", "Abgabe-Übungen (Training)."));
-  const a = section("Abgaben", "");
-  const list = ce("div"); if (!STORE.apotheke.abgaben.length) list.appendChild(emptyMsg());
-  STORE.apotheke.abgaben.forEach(x=>{ const d=ce("div"); d.innerHTML=`<strong>${x.name}</strong> — ${x.praeparat||"—"} • ${x.dosis||"—"} <em>(${x.datum||"—"})</em>`; list.appendChild(d); });
-  const f = ce("form"); f.innerHTML = `
-    <label>Name<input name="name" required></label>
-    <label>Datum<input type="date" name="datum" value="${today()}"></label>
-    <label>Präparat<input name="praeparat" placeholder="Platzhalterpräparat"></label>
-    <label>Dosis/Anweisung<input name="dosis" placeholder="z. B. 1-0-1, nach dem Essen"></label>
-    <div class="toolbar">
-      <button class="btn primary">Abgabe speichern</button>
-      <button type="button" class="btn" onclick="exportCSV(STORE.apotheke.abgaben,'apotheke-abgaben.csv')">CSV exportieren</button>
-    </div>`;
-  f.onsubmit=(e)=>{e.preventDefault(); STORE.apotheke.abgaben.push(Object.fromEntries(new FormData(f))); save(); render();};
-  a.appendChild(list); a.appendChild(f); app.appendChild(a);
+  app.appendChild(cardInfo("Info",
+    "Sonnen Apotheke: Abgabe-Übungen – ausschließlich Trainingsdaten verwenden."));
+
+  app.appendChild(listFormCard({
+    title:"Abgaben",
+    list: STORE.apotheke.abgaben,
+    renderLine: x => `<strong>${x.name}</strong> — ${x.praeparat||"—"} • ${x.dosis||"—"} <em>(${x.datum||"—"})</em>`,
+    formHTML: `
+      ${input("Name","name",true)}
+      ${input("Datum","datum",false,"date",today())}
+      ${input("Präparat","praeparat",false,"text","Platzhalterpräparat")}
+      ${input("Dosis/Anweisung","dosis",false,"text","z. B. 1-0-1, nach dem Essen")}
+      <div class="toolbar">
+        <button class="btn primary" type="submit">Speichern</button>
+        <button class="btn" type="button" onclick="exportCSV(STORE.apotheke.abgaben,'apotheke-abgaben.csv')">CSV exportieren</button>
+      </div>
+    `,
+    onSubmit: data => { STORE.apotheke.abgaben.push(data); save(); }
+  }));
 }
 
-// ---------- Demo-Daten ----------
+/* ---------- Kinderarzt-Praxis ---------- */
+function renderKinderarzt(app){
+  app.appendChild(cardInfo("Info",
+    "Kinderarzt-Praxis: Aufnahme & Besuchsdokumentation – kindgerecht, klar und kurz (Training)."));
+
+  // Patienten (Kinder)
+  app.appendChild(listFormCard({
+    title:"Patienten",
+    list: STORE.kinderarzt.patienten,
+    renderLine: p => `<strong>${p.vorname} ${p.nachname}</strong> — geb. ${p.geburt||"—"} ${p.kasse?badge(p.kasse):""}`,
+    formHTML: `
+      ${input("Vorname","vorname",true)}
+      ${input("Nachname","nachname",true)}
+      ${input("Geburt","geburt",false,"date")}
+      ${input("Krankenkasse","kasse")}
+    `,
+    onSubmit: data => { STORE.kinderarzt.patienten.push(data); save(); }
+  }));
+
+  // Besuche
+  app.appendChild(listFormCard({
+    title:"Besuche",
+    list: STORE.kinderarzt.besuche,
+    renderLine: b => `<strong>${b.patient}</strong> — Grund: ${b.grund||"—"} • <em>${b.datum||"—"}</em><br>Befund: ${b.befund||"—"} • Therapie: ${b.therapie||"—"}`,
+    formHTML: `
+      ${select("Patient","patient", STORE.kinderarzt.patienten.map(p=>`${p.vorname} ${p.nachname}`))}
+      ${input("Datum","datum",false,"date",today())}
+      ${input("Grund (z. B. U6, Fieber, Impfung)","grund")}
+      ${textarea("Befund","befund")}
+      ${textarea("Therapie/Empfehlung","therapie")}
+      <div class="toolbar">
+        <button class="btn primary" type="submit">Speichern</button>
+        <button class="btn" type="button" onclick="exportCSV(STORE.kinderarzt.besuche,'kinderarzt-besuche.csv')">CSV exportieren</button>
+      </div>
+    `,
+    onSubmit: data => { STORE.kinderarzt.besuche.push(data); save(); }
+  }));
+}
+
+/* ---------- Bausteine ---------- */
+function cardInfo(title, text){
+  const d=ce("div",{className:"card"});
+  d.innerHTML = `<h3>${title}</h3><p class="muted">${text}</p>`;
+  return d;
+}
+function badge(txt){ return `<span class="badge">${txt}</span>`; }
+function input(label, name, required=false, type="text", value="", extraAttrs={}){
+  const attrs = Object.entries(extraAttrs).map(([k,v])=>`${k}="${v}"`).join(" ");
+  return `<label>${label}<input name="${name}" type="${type}" value="${value||""}" ${required?"required":""} ${attrs}></label>`;
+}
+function textarea(label, name, value=""){ return `<label>${label}<textarea name="${name}">${value||""}</textarea></label>`; }
+function select(label, name, options=[]){
+  const opts = options.map(o=>`<option value="${o}">${o}</option>`).join("");
+  return `<label>${label}<select name="${name}">${opts}</select></label>`;
+}
+function listFormCard({title, list, renderLine, formHTML, onSubmit}){
+  const wrap = ce("div",{className:"card"});
+  wrap.innerHTML = `<h3>${title}</h3>`;
+  if (!list || !list.length) {
+    const p = ce("p",{className:"muted"}); p.textContent="Noch keine Einträge."; wrap.appendChild(p);
+  } else {
+    list.forEach(item => { const d=ce("div"); d.innerHTML=renderLine(item); wrap.appendChild(d); });
+  }
+  const form = ce("form"); form.innerHTML = formHTML;
+  form.onsubmit=(e)=>{ e.preventDefault(); const data=Object.fromEntries(new FormData(form)); onSubmit(data); render(); };
+  wrap.appendChild(form);
+  return wrap;
+}
+
+/* ---------- Demo-Daten ---------- */
 function seedDemo(){
+  // Kita
   STORE.kita.kinder = [
     { vorname:"Mila", nachname:"Klein", geburtstag:"2020-04-18", gruppe:"Sonnen" },
     { vorname:"Yunus", nachname:"Aziz", geburtstag:"2019-11-02", gruppe:"Löwen" },
@@ -480,6 +532,7 @@ function seedDemo(){
   STORE.kita.anwesenheit = [{ kindId:"Mila Klein", datum: today(), status:"anwesend", abholer:"Mutter" }];
   STORE.kita.eltern = [{ kindId:"Mila Klein", datum: today(), kanal:"Tür-und-Angel", inhalt:"Schlafenszeit besprochen." }];
 
+  // Pflege
   STORE.pflege.bewohner = [
     { vorname:"Karl", nachname:"Schmidt", geburt:"1941-07-12", zimmer:"2.14", pflegegrad:3 },
     { vorname:"Hanne", nachname:"Vogel", geburt:"1938-03-03", zimmer:"1.07", pflegegrad:2 },
@@ -497,6 +550,7 @@ function seedDemo(){
     { bewohnerId:"Hanne Vogel", datum: today(), ort:"Bad", folgen:"Hämatom li. Unterarm", arzt:"nein", meldung:"Team & Angehörige informiert" }
   ];
 
+  // Krankenhaus
   STORE.krankenhaus.patienten = [
     { name:"Franz Meier", geburt:"1958-02-21", fach:"Innere", datum: today() }
   ];
@@ -504,18 +558,29 @@ function seedDemo(){
     { pat:"Franz Meier", datum: today(), puls:82, rr:"128/76", temp:36.8, spo2:98 }
   ];
 
+  // Ambulant
   STORE.ambulant.touren = [
     { klient:"Emine Kaya", datum: today(), leistung:"LK 3 – große Morgenpflege", von:"08:00", bis:"08:45" }
   ];
 
+  // Ergo
   STORE.ergo.einheiten = [
     { klient:"Nora Lehmann", datum: today(), ziel:"Feinmotorik", inhalt:"Perlen sortieren, Knetübung, Pinzettengriff." }
   ];
 
+  // Apotheke
   STORE.apotheke.abgaben = [
     { name:"Paul Weber", datum: today(), praeparat:"Platzhalterpräparat", dosis:"1-0-1 nach dem Essen" }
   ];
+
+  // Kinderarzt
+  STORE.kinderarzt.patienten = [
+    { vorname:"Lina", nachname:"Yilmaz", geburt:"2021-06-12", kasse:"AOK" }
+  ];
+  STORE.kinderarzt.besuche = [
+    { patient:"Lina Yilmaz", datum: today(), grund:"U6", befund:"altersgerecht, unauffällig", therapie:"Beratung Ernährung & Schlaf" }
+  ];
+
   save(); render();
 }
-
 
