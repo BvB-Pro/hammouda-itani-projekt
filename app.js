@@ -246,9 +246,18 @@ function render(){
 function renderHome(app){
   app.appendChild(cardInfo(
     "Liebe Mitarbeitenden,",
-    "es ist uns eine große Freude, euch als Team und Mitbegründer in unserer Unternehmensgruppe willkommen zu heißen. Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und zentral synchronisiert. Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten. Hier findet ihr in Zukunft wertvolle News, Aktuelle Nachrichten, Kurze Infos und Fortbildungen und vieles Spannendes rund um unsere Unternehmensgruppe. Eure Stiftungs-Präsident: Z. Bremkens und eure Stiftungs-Vorsitzenden: B. Hammouda und A.R. Itani sowie die Geschäftsführerin der Stiftung V. Lauth"
+    `es ist uns eine große Freude, euch als Team und Mitbegründer in unserer Unternehmensgruppe willkommen zu heißen.
+
+Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und zentral synchronisiert.
+
+Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten.
+
+Hier findet ihr in Zukunft wertvolle News, aktuelle Nachrichten, kurze Infos und Fortbildungen und vieles Spannendes rund um unsere Unternehmensgruppe.
+
+Stiftungs-Präsident: Z. Bremkens; Stiftungs-Vorsitzenden: B. Hammouda und A.R. Itani; Geschäftsführerin der Stiftung V. Lauth`
   ));
 }
+
 
 function renderVerwaltung(app){
   app.appendChild(cardInfo("Hinweis",
@@ -616,20 +625,16 @@ function renderKinderarzt(app){
 
 /* ====== UI-Bausteine ====== */
 function cardInfo(title, text){
-  const d=ce("div",{className:"card"});
-  d.innerHTML = `<h3>${title}</h3><p class="muted">${text}</p>`;
+  const d = ce("div",{className:"card"});
+  // \n\n → neuer Absatz
+  const htmlText = text
+    .split("\n\n")                     // Text in Absätze trennen
+    .map(t => `<p class="muted">${t}</p>`) // jeden Absatz in <p> packen
+    .join("");
+  d.innerHTML = `<h3>${title}</h3>${htmlText}`;
   return d;
 }
-function badge(txt){ return `<span class="badge">${txt}</span>`; }
-function input(label,name,required=false,type="text",value="",extraAttrs={}){
-  const attrs = Object.entries(extraAttrs).map(([k,v])=>`${k}="${v}"`).join(" ");
-  return `<label>${label}<input name="${name}" type="${type}" value="${value||""}" ${required?"required":""} ${attrs}></label>`;
-}
-function textarea(label,name,value=""){ return `<label>${label}<textarea name="${name}">${value||""}</textarea></label>`; }
-function select(label,name,options=[]){
-  const opts = options.map(o=>`<option value="${o}">${o}</option>`).join("");
-  return `<label>${label}<select name="${name}">${opts}</select></label>`;
-}
+
 
 function listFormCard({title, list, renderLine, formHTML, onSubmit}){
   const wrap = ce("div",{className:"card"});
