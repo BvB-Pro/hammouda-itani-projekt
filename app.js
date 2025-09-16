@@ -754,10 +754,7 @@ async function seedDemo(){
   await addDocTo(COL.kid_besuche, { patient:"Lina Yilmaz", datum: today(), grund:"U6", befund:"altersgerecht, unauffällig", therapie:"Beratung Ernährung & Schlaf" });
   await addDocTo(COL.kid_termine, { patient:"Lina Yilmaz", datum: today(), zeit:"10:30", grund:"Impfung", notiz:"Aufklärung zu Nebenwirkungen." });
 }
-// --- Firestore Test ---
-import { addDoc, collection, serverTimestamp } 
-  from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { db } from "./firebase.js";
+
 
 authReady.then(async ()=>{
   try {
