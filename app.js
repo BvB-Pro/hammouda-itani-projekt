@@ -1,18 +1,28 @@
-/* Hammouda-Itani-Stiftung – Vollversion app.js
-   Features:
-   - Unternehmen-Dropdown per Klick (Outside-Click/ESC, ARIA)
-   - Hero pro Seite (Titel + Slogan)
-   - Druckbutton (immer oben rechts)
-   - Alle Bereiche mit Formularen & Speicherung (localStorage)
-   - CSV-Exporte + Gesamt-JSON-Export
+/* Hammouda-Itani-Stiftung – app.js (Firebase-Realtime, v1.0)
+   - Zentrale Speicherung: Firestore (Echtzeit)
+   - Anonyme Auth (kommt aus firebase.js)
+   - Startseite: nur Infotext
+   - Dropdown: Stiftung zuerst
+   - CSV/JSON-Export
    - Kinderarzt: Versichertennummer + Terminliste
+   - Dark-Mode & letzte Seite gemerkt
 */
 
+import { db, authReady } from "./firebase.js";
+import {
+  collection, addDoc, onSnapshot, serverTimestamp,
+  query, orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+/* ====== Einstellungen ====== */
+const TENANT_ID = "stiftung"; // Mandant (Sammlungs-Namespace in Firestore)
+
+/* ====== Hilfsfunktionen UI ====== */
 const qs = (s) => document.querySelector(s);
 const ce = (t, p = {}) => Object.assign(document.createElement(t), p);
 const today = () => new Date().toISOString().slice(0,10);
 
-/* --------- Routing / Seiten --------- */
+/* ====== Seiten ====== */
 const PAGES = [
   { id:"home",          title:"Hammouda-Itani Stiftung",      slogan:"Die Stiftung von uns für uns." },
   { id:"verwaltung",    title:"Hand in Hand Verwaltung",       slogan:"Zentrale Steuerung für starke Teams." },
@@ -25,129 +35,195 @@ const PAGES = [
   { id:"kinderarzt",    title:"Kinderarzt-Praxis",             slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten." },
 ];
 
-const state = { page: "home", storeKey: "stiftung-store-v6" };
-
-/* --------- Storage --------- */
-let STORE = initStore();
-
-function initStore(){
-  const raw = localStorage.getItem(state.storeKey);
-  if (raw) return JSON.parse(raw);
-  const seed = {
-    meta:{version:6, created:new Date().toISOString()},
-    kita:{kinder:[], beobachtungen:[], anwesenheit:[], eltern:[]},
-    pflege:{bewohner:[], berichte:[], vitals:[], medis:[], sturz:[]},
-    krankenhaus:{patienten:[], vitals:[]},
-    ambulant:{touren:[]},
-    ergo:{einheiten:[]},
-    apotheke:{abgaben:[]},
-    kinderarzt:{patienten:[], besuche:[], termine:[]}
-  };
-  localStorage.setItem(state.storeKey, JSON.stringify(seed));
-  return seed;
+/* ====== UI-Status (persistenter Zustand) ====== */
+const UI_KEY = "stiftung-ui-v2";
+function loadUI(){
+  try {
+    return JSON.parse(localStorage.getItem(UI_KEY)) || { lastPage:"home", dark:false };
+  } catch { return { lastPage:"home", dark:false }; }
 }
-function save(){ localStorage.setItem(state.storeKey, JSON.stringify(STORE)); }
+function saveUI(patch){ localStorage.setItem(UI_KEY, JSON.stringify({ ...loadUI(), ...patch })); }
+let CURRENT_PAGE = loadUI().lastPage || "home";
 
-/* --------- Export/Tools --------- */
-function exportCSV(rows, name="export.csv"){
-  if (!rows?.length) { alert("Keine Daten zum Exportieren."); return; }
-  const keys = [...new Set(rows.flatMap(r => Object.keys(r)))];
-  const esc = (v) => `"${String(v ?? "").replace(/"/g,'""')}"`;
-  const csv = [keys.map(esc).join(","), ...rows.map(r=>keys.map(k=>esc(r[k])).join(","))].join("\n");
-  const url = URL.createObjectURL(new Blob([csv], {type:"text/csv"}));
-  const a = ce("a", {href:url, download:name}); document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 300);
-}
-function exportJSON(obj, name="export.json"){
-  const url = URL.createObjectURL(new Blob([JSON.stringify(obj,null,2)], {type:"application/json"}));
-  const a = ce("a", {href:url, download:name}); document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 300);
-}
+/* ====== In-Memory Store (wird von Firestore gespeist) ====== */
+const STORE = {
+  kita:       { kinder: [], beobachtungen: [], anwesenheit: [], eltern: [] },
+  pflege:     { bewohner: [], berichte: [], vitals: [], medis: [], sturz: [] },
+  krankenhaus:{ patienten: [], vitals: [] },
+  ambulant:   { touren: [] },
+  ergo:       { einheiten: [] },
+  apotheke:   { abgaben: [] },
+  kinderarzt: { patienten: [], besuche: [], termine: [] }
+};
 
-/* --------- Boot --------- */
-document.addEventListener("DOMContentLoaded", () => {
+/* ====== Firestore-Sammlungen (Pfade) ====== */
+const COL = {
+  kita_kinder:           `tenants/${TENANT_ID}/kita_kinder`,
+  kita_beobachtungen:    `tenants/${TENANT_ID}/kita_beobachtungen`,
+  kita_anwesenheit:      `tenants/${TENANT_ID}/kita_anwesenheit`,
+  kita_eltern:           `tenants/${TENANT_ID}/kita_eltern`,
+
+  pflege_bewohner:       `tenants/${TENANT_ID}/pflege_bewohner`,
+  pflege_berichte:       `tenants/${TENANT_ID}/pflege_berichte`,
+  pflege_vitals:         `tenants/${TENANT_ID}/pflege_vitals`,
+  pflege_medis:          `tenants/${TENANT_ID}/pflege_medis`,
+  pflege_sturz:          `tenants/${TENANT_ID}/pflege_sturz`,
+
+  kh_patienten:          `tenants/${TENANT_ID}/kh_patienten`,
+  kh_vitals:             `tenants/${TENANT_ID}/kh_vitals`,
+
+  amb_touren:            `tenants/${TENANT_ID}/amb_touren`,
+
+  ergo_einheiten:        `tenants/${TENANT_ID}/ergo_einheiten`,
+
+  apo_abgaben:           `tenants/${TENANT_ID}/apo_abgaben`,
+
+  kid_patienten:         `tenants/${TENANT_ID}/kid_patienten`,
+  kid_besuche:           `tenants/${TENANT_ID}/kid_besuche`,
+  kid_termine:           `tenants/${TENANT_ID}/kid_termine`,
+};
+
+/* ====== Boot ====== */
+document.addEventListener("DOMContentLoaded", async () => {
+  // Dark Mode wiederherstellen / Systempräferenz berücksichtigen
+  const ui = loadUI();
+  if (ui.dark || (window.matchMedia?.('(prefers-color-scheme: dark)').matches && ui.dark !== false)) {
+    document.documentElement.classList.add("dark");
+  }
+
+  // Header-UI
   setupDropdown("companyDropdown", "companyBtn", "companyMenu");
   setupDropdown("moreDropdown", "moreBtn", "moreMenu");
   buildCompanyMenu();
 
-  // System-Dark-Mode als Start
-  if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-    document.documentElement.classList.add("dark");
-  }
-
   // Druck
-  qs("#printBtn").addEventListener("click", () => window.print());
+  qs("#printBtn")?.addEventListener("click", () => window.print());
 
-  // Sonstiges-Aktionen
+  // Sonstiges
   document.body.addEventListener("click", (e)=>{
-    if (e.target.closest("#moreMenu button")) {
-      const btn = e.target.closest("button");
-      const act = btn.dataset.action;
-      if (act==="seed") seedDemo();
-      if (act==="export-json") exportJSON(STORE, "stiftung-export.json");
-      if (act==="dark") document.documentElement.classList.toggle("dark");
-      if (act==="reset") {
-        if (confirm("Wirklich alle lokalen Daten löschen?")) {
-          localStorage.removeItem(state.storeKey); STORE = initStore(); render();
-        }
-      }
+    const btn = e.target.closest("#moreMenu button");
+    if (!btn) return;
+    const act = btn.dataset.action;
+    if (act==="export-json") exportAllJSON();
+    if (act==="dark") {
+      document.documentElement.classList.toggle("dark");
+      saveUI({ dark: document.documentElement.classList.contains("dark") });
     }
+    if (act==="seed") seedDemo(); // Demo-Daten in Firestore schreiben
+    if (act==="reset") alert("Bei zentraler Speicherung gibt es hier keinen ‚Alles löschen‘-Button.");
   });
 
-  render();
+  // Auf Auth warten → Realtime-Listener registrieren
+  await authReady;
+  await initRealtime();
+
+  switchTo(CURRENT_PAGE);
 });
 
-/* --------- Dropdown-Logik (Klick/Outside/ESC/ARIA) --------- */
+/* ====== Firestore Realtime (onSnapshot) ====== */
+async function initRealtime(){
+  const asc = (path) => query(collection(db, path), orderBy("datum","asc"));
+  const plain = (path) => collection(db, path);
+
+  // Kita
+  subscribe(plain(COL.kita_kinder), STORE.kita.kinder);
+  subscribe(asc(COL.kita_beobachtungen), STORE.kita.beobachtungen);
+  subscribe(asc(COL.kita_anwesenheit), STORE.kita.anwesenheit);
+  subscribe(asc(COL.kita_eltern), STORE.kita.eltern);
+
+  // Pflege
+  subscribe(plain(COL.pflege_bewohner), STORE.pflege.bewohner);
+  subscribe(asc(COL.pflege_berichte), STORE.pflege.berichte);
+  subscribe(asc(COL.pflege_vitals), STORE.pflege.vitals);
+  subscribe(asc(COL.pflege_medis), STORE.pflege.medis);
+  subscribe(asc(COL.pflege_sturz), STORE.pflege.sturz);
+
+  // Krankenhaus
+  subscribe(plain(COL.kh_patienten), STORE.krankenhaus.patienten);
+  subscribe(asc(COL.kh_vitals), STORE.krankenhaus.vitals);
+
+  // Ambulant
+  subscribe(asc(COL.amb_touren), STORE.ambulant.touren);
+
+  // Ergo
+  subscribe(asc(COL.ergo_einheiten), STORE.ergo.einheiten);
+
+  // Apotheke
+  subscribe(asc(COL.apo_abgaben), STORE.apotheke.abgaben);
+
+  // Kinderarzt
+  subscribe(plain(COL.kid_patienten), STORE.kinderarzt.patienten);
+  subscribe(asc(COL.kid_besuche), STORE.kinderarzt.besuche);
+  subscribe(asc(COL.kid_termine), STORE.kinderarzt.termine);
+}
+
+function subscribe(refOrQuery, targetArr){
+  onSnapshot(refOrQuery, (snap)=>{
+    targetArr.length = 0;
+    snap.forEach(d => targetArr.push({ id:d.id, ...d.data() }));
+    render(); // Live-Update der UI bei jeder Änderung
+  });
+}
+
+async function addDocTo(path, data){
+  return addDoc(collection(db, path), { ...data, _ts: serverTimestamp() });
+}
+
+/* ====== Dropdown / Navigation ====== */
 function setupDropdown(wrapperId, buttonId, menuId){
   const wrap = qs("#"+wrapperId);
   const btn  = qs("#"+buttonId);
   const menu = qs("#"+menuId);
-
   const close= ()=>{ wrap.classList.remove("open"); btn?.setAttribute("aria-expanded","false"); };
+
   btn?.addEventListener("click", (e)=>{ 
     e.stopPropagation(); 
     wrap.classList.toggle("open"); 
     btn.setAttribute("aria-expanded", wrap.classList.contains("open") ? "true":"false");
     if (wrap.classList.contains("open")) menu?.focus();
   });
-
   document.addEventListener("click", (e)=>{ if (!wrap.contains(e.target)) close(); });
   document.addEventListener("keydown", (e)=>{ if (e.key==="Escape") close(); });
 }
 
-/* --------- Unternehmen-Menü --------- */
 function buildCompanyMenu(){
-  const menu = qs("#companyMenu");
-  if (!menu) return;
+  const menu = qs("#companyMenu"); if (!menu) return;
   menu.innerHTML = "";
-  PAGES.filter(p=>p.id!=="home").forEach(p=>{
+  const order = [ PAGES.find(p=>p.id==="home"), ...PAGES.filter(p=>p.id!=="home") ];
+  order.forEach(p=>{
     const a = ce("a",{href:"#", className:"kachel", role:"menuitem"});
-    a.innerHTML = `<div class="icon">★</div><div><strong>${p.title}</strong><div class="muted">${p.slogan}</div></div>`;
+    a.innerHTML = `<div class="icon">★</div>
+      <div><strong>${p.title}</strong><div class="muted">${p.slogan}</div></div>`;
     a.addEventListener("click",(ev)=>{
-      ev.preventDefault(); switchTo(p.id);
-      const dd = qs("#companyDropdown"); dd?.classList.remove("open");
+      ev.preventDefault();
+      switchTo(p.id);
+      qs("#companyDropdown")?.classList.remove("open");
       qs("#companyBtn")?.setAttribute("aria-expanded","false");
     });
     menu.appendChild(a);
   });
 }
 
-/* --------- Routing --------- */
-function switchTo(id){ state.page=id; render(); }
+function switchTo(id){
+  CURRENT_PAGE = id;
+  saveUI({ lastPage:id });
+  render();
+}
+
+/* ====== Render ====== */
 function render(){
-  const page = PAGES.find(p=>p.id===state.page) || PAGES[0];
+  const page = PAGES.find(p=>p.id===CURRENT_PAGE) || PAGES[0];
 
-  // Hero
+  // (Optional) großes Bild-Hero oben synchronisieren, falls in index.html Listener existiert
+  document.dispatchEvent(new CustomEvent('stiftung:pagechange',{detail:{title:page.title,slogan:page.slogan}}));
+
+  // Karten-Hero
   const hero = qs("#hero");
-  hero.innerHTML = `
-    <div class="card">
-      <h1>${page.title}</h1>
-      <p>${page.slogan}</p>
-    </div>
-  `;
+  hero.innerHTML = `<div class="card"><h1>${page.title}</h1><p>${page.slogan}</p></div>`;
 
-  // Main
+  // Inhalt
   const app = qs("#app"); app.innerHTML = "";
+
   if (page.id==="home") return renderHome(app);
   if (page.id==="verwaltung") return renderVerwaltung(app);
   if (page.id==="kita") return renderKita(app);
@@ -159,18 +235,12 @@ function render(){
   if (page.id==="kinderarzt") return renderKinderarzt(app);
 }
 
-/* --------- Home / Verwaltung --------- */
+/* ====== Seiten: Home / Verwaltung ====== */
 function renderHome(app){
-  app.appendChild(cardInfo("Liebe Mitarbeitenden,",
-    "es ist uns eine große Freude, euch als Team in unserer Unternehmensgruppe willkommen zu heißen. Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und vollständig lokal gespeichert. Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten."));
-  const grid = ce("div",{className:"grid"});
-  PAGES.filter(p=>p.id!=="home").forEach(p=>{
-    const a = ce("a",{href:"#", className:"kachel"});
-    a.innerHTML = `<div class="icon">★</div><div><strong>${p.title}</strong><div class="muted">${p.slogan}</div></div>`;
-    a.onclick = (ev)=>{ ev.preventDefault(); switchTo(p.id); };
-    grid.appendChild(a);
-  });
-  app.appendChild(grid);
+  app.appendChild(cardInfo(
+    "Liebe Mitarbeitenden,",
+    "es ist uns eine große Freude, euch als Team in unserer Unternehmensgruppe willkommen zu heißen. Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und zentral synchronisiert. Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten."
+  ));
 }
 
 function renderVerwaltung(app){
@@ -179,16 +249,18 @@ function renderVerwaltung(app){
   const tools = ce("div",{className:"card"});
   tools.innerHTML = `<h3>Werkzeuge</h3>
     <div class="toolbar">
-      <button class="btn primary" onclick="exportJSON(STORE,'stiftung-export.json')">Gesamtexport (JSON)</button>
+      <button class="btn primary" id="exportAllBtn">Gesamtexport (JSON)</button>
     </div>`;
+  tools.querySelector("#exportAllBtn").addEventListener("click", exportAllJSON);
   app.appendChild(tools);
 }
 
-/* --------- Kita --------- */
+/* ====== Kita ====== */
 function renderKita(app){
   app.appendChild(cardInfo("Info",
-    "Die drei Löwen Kindergarten: Bitte nur Übungsdaten verwenden. Alle Einträge werden lokal gespeichert."));
+    "Die drei Löwen Kindergarten: Bitte nur Übungsdaten verwenden. Alle Einträge werden zentral gespeichert."));
 
+  // Kinder
   app.appendChild(listFormCard({
     title:"Kinder",
     list: STORE.kita.kinder,
@@ -199,9 +271,10 @@ function renderKita(app){
       ${input("Geburtstag","geburtstag",false,"date")}
       ${input("Gruppe","gruppe",false,"text","Sonnen / Sterne / Löwen …")}
     `,
-    onSubmit: data => { STORE.kita.kinder.push(data); save(); }
+    onSubmit: data => addDocTo(COL.kita_kinder, data)
   }));
 
+  // Beobachtungen
   app.appendChild(listFormCard({
     title:"Beobachtungen",
     list: STORE.kita.beobachtungen,
@@ -213,12 +286,13 @@ function renderKita(app){
       ${textarea("Text","text")}
       <div class="toolbar">
         <button class="btn primary" type="submit">Speichern</button>
-        <button class="btn" type="button" onclick="exportCSV(STORE.kita.beobachtungen,'kita-beobachtungen.csv')">CSV exportieren</button>
+        <button class="btn" type="button" onclick="(${(x)=>exportCSV(x,'kita-beobachtungen.csv')})(${JSON.stringify(STORE.kita.beobachtungen)})">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => { STORE.kita.beobachtungen.push(data); save(); }
+    onSubmit: data => addDocTo(COL.kita_beobachtungen, data)
   }));
 
+  // Anwesenheit
   app.appendChild(listFormCard({
     title:"Anwesenheit",
     list: STORE.kita.anwesenheit,
@@ -230,12 +304,13 @@ function renderKita(app){
       ${input("Abholer (optional)","abholer",false)}
       <div class="toolbar">
         <button class="btn primary" type="submit">Speichern</button>
-        <button class="btn" type="button" onclick="exportCSV(STORE.kita.anwesenheit,'kita-anwesenheit.csv')">CSV exportieren</button>
+        <button class="btn" type="button" onclick="(${(x)=>exportCSV(x,'kita-anwesenheit.csv')})(${JSON.stringify(STORE.kita.anwesenheit)})">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => { STORE.kita.anwesenheit.push(data); save(); }
+    onSubmit: data => addDocTo(COL.kita_anwesenheit, data)
   }));
 
+  // Elternkommunikation
   app.appendChild(listFormCard({
     title:"Elternkommunikation",
     list: STORE.kita.eltern,
@@ -247,18 +322,19 @@ function renderKita(app){
       ${textarea("Inhalt","inhalt")}
       <div class="toolbar">
         <button class="btn primary" type="submit">Speichern</button>
-        <button class="btn" type="button" onclick="exportCSV(STORE.kita.eltern,'kita-elternkommunikation.csv')">CSV exportieren</button>
+        <button class="btn" type="button" onclick="(${(x)=>exportCSV(x,'kita-elternkommunikation.csv')})(${JSON.stringify(STORE.kita.eltern)})">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => { STORE.kita.eltern.push(data); save(); }
+    onSubmit: data => addDocTo(COL.kita_eltern, data)
   }));
 }
 
-/* --------- Pflegeheim --------- */
+/* ====== Pflegeheim ====== */
 function renderPflege(app){
   app.appendChild(cardInfo("Info",
     "Pflegeheim der Gemeinschaft: Training für Bewohner, Berichte, Vitalwerte, Medigabe (nur Übung!) und Sturzmeldungen."));
 
+  // Bewohner
   app.appendChild(listFormCard({
     title:"Bewohner",
     list: STORE.pflege.bewohner,
@@ -270,9 +346,10 @@ function renderPflege(app){
       ${input("Zimmer","zimmer",false)}
       ${input("Pflegegrad","pflegegrad",false,"number")}
     `,
-    onSubmit: data => { if(data.pflegegrad) data.pflegegrad=Number(data.pflegegrad); STORE.pflege.bewohner.push(data); save(); }
+    onSubmit: data => addDocTo(COL.pflege_bewohner, { ...data, pflegegrad: data.pflegegrad?Number(data.pflegegrad):undefined })
   }));
 
+  // Pflegeberichte
   app.appendChild(listFormCard({
     title:"Pflegeberichte",
     list: STORE.pflege.berichte,
@@ -284,12 +361,13 @@ function renderPflege(app){
       ${textarea("Text (objektiv/subjektiv/Plan/Evaluation)","text")}
       <div class="toolbar">
         <button class="btn primary" type="submit">Speichern</button>
-        <button class="btn" type="button" onclick="exportCSV(STORE.pflege.berichte,'pflege-berichte.csv')">CSV exportieren</button>
+        <button class="btn" type="button" onclick="(${(x)=>exportCSV(x,'pflege-berichte.csv')})(${JSON.stringify(STORE.pflege.berichte)})">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => { STORE.pflege.berichte.push(data); save(); }
+    onSubmit: data => addDocTo(COL.pflege_berichte, data)
   }));
 
+  // Vitalwerte
   app.appendChild(listFormCard({
     title:"Vitalwerte",
     list: STORE.pflege.vitals,
@@ -303,12 +381,18 @@ function renderPflege(app){
       ${input("SpO₂ (%)","spo2",false,"number")}
       <div class="toolbar">
         <button class="btn primary" type="submit">Speichern</button>
-        <button class="btn" type="button" onclick="exportCSV(STORE.pflege.vitals,'pflege-vitalwerte.csv')">CSV exportieren</button>
+        <button class="btn" type="button" onclick="(${(x)=>exportCSV(x,'pflege-vitalwerte.csv')})(${JSON.stringify(STORE.pflege.vitals)})">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => { ["puls","temp","spo2"].forEach(k=>data[k]=data[k]?Number(data[k]):undefined); STORE.pflege.vitals.push(data); save(); }
+    onSubmit: data => addDocTo(COL.pflege_vitals, {
+      ...data,
+      puls: data.puls?Number(data.puls):undefined,
+      temp: data.temp?Number(data.temp):undefined,
+      spo2: data.spo2?Number(data.spo2):undefined
+    })
   }));
 
+  // Medigabe
   app.appendChild(listFormCard({
     title:"Medigabe – Trainingszwecke",
     list: STORE.pflege.medis,
@@ -322,12 +406,13 @@ function renderPflege(app){
       ${textarea("Bemerkung","bemerkung","Training: keine echten Medigaben dokumentieren!")}
       <div class="toolbar">
         <button class="btn primary" type="submit">Speichern</button>
-        <button class="btn" type="button" onclick="exportCSV(STORE.pflege.medis,'pflege-medigabe.csv')">CSV exportieren</button>
+        <button class="btn" type="button" onclick="(${(x)=>exportCSV(x,'pflege-medigabe.csv')})(${JSON.stringify(STORE.pflege.medis)})">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => { STORE.pflege.medis.push(data); save(); }
+    onSubmit: data => addDocTo(COL.pflege_medis, data)
   }));
 
+  // Sturzmeldungen
   app.appendChild(listFormCard({
     title:"Sturzmeldungen",
     list: STORE.pflege.sturz,
@@ -341,18 +426,19 @@ function renderPflege(app){
       ${textarea("Meldung/Infofluss","meldung","Team/Angehörige informiert …")}
       <div class="toolbar">
         <button class="btn primary" type="submit">Speichern</button>
-        <button class="btn" type="button" onclick="exportCSV(STORE.pflege.sturz,'pflege-sturzmeldungen.csv')">CSV exportieren</button>
+        <button class="btn" type="button" onclick="(${(x)=>exportCSV(x,'pflege-sturzmeldungen.csv')})(${JSON.stringify(STORE.pflege.sturz)})">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => { STORE.pflege.sturz.push(data); save(); }
+    onSubmit: data => addDocTo(COL.pflege_sturz, data)
   }));
 }
 
-/* --------- Krankenhaus --------- */
+/* ====== Krankenhaus ====== */
 function renderKrankenhaus(app){
   app.appendChild(cardInfo("Info",
     "Mond-Krankenhaus: Einfache Aufnahme & Vitalwerte als Trainingsbeispiel."));
 
+  // Aufnahme
   app.appendChild(listFormCard({
     title:"Aufnahme",
     list: STORE.krankenhaus.patienten,
@@ -363,9 +449,10 @@ function renderKrankenhaus(app){
       ${select("Fachbereich","fach", ["Innere","Chirurgie","Geriatrie"])}
       ${input("Aufnahmedatum","datum",false,"date",today())}
     `,
-    onSubmit: data => { STORE.krankenhaus.patienten.push(data); save(); }
+    onSubmit: data => addDocTo(COL.kh_patienten, data)
   }));
 
+  // Vitalwerte
   app.appendChild(listFormCard({
     title:"Vitalwerte",
     list: STORE.krankenhaus.vitals,
@@ -379,14 +466,19 @@ function renderKrankenhaus(app){
       ${input("SpO₂ (%)","spo2",false,"number")}
       <div class="toolbar">
         <button class="btn primary" type="submit">Speichern</button>
-        <button class="btn" type="button" onclick="exportCSV(STORE.krankenhaus.vitals,'kh-vitalwerte.csv')">CSV exportieren</button>
+        <button class="btn" type="button" onclick="(${(x)=>exportCSV(x,'kh-vitalwerte.csv')})(${JSON.stringify(STORE.krankenhaus.vitals)})">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => { ["puls","temp","spo2"].forEach(k=>data[k]=data[k]?Number(data[k]):undefined); STORE.krankenhaus.vitals.push(data); save(); }
+    onSubmit: data => addDocTo(COL.kh_vitals, {
+      ...data,
+      puls: data.puls?Number(data.puls):undefined,
+      temp: data.temp?Number(data.temp):undefined,
+      spo2: data.spo2?Number(data.spo2):undefined
+    })
   }));
 }
 
-/* --------- Ambulant --------- */
+/* ====== Ambulant ====== */
 function renderAmbulant(app){
   app.appendChild(cardInfo("Info",
     "Ambulanter Pflegedienst zum Stern: Einfache Touren- & Einsatzdoku (Training)."));
@@ -403,14 +495,14 @@ function renderAmbulant(app){
       ${input("Bis","bis",false,"time","08:30")}
       <div class="toolbar">
         <button class="btn primary" type="submit">Speichern</button>
-        <button class="btn" type="button" onclick="exportCSV(STORE.ambulant.touren,'ambulant-touren.csv')">CSV exportieren</button>
+        <button class="btn" type="button" onclick="(${(x)=>exportCSV(x,'ambulant-touren.csv')})(${JSON.stringify(STORE.ambulant.touren)})">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => { STORE.ambulant.touren.push(data); save(); }
+    onSubmit: data => addDocTo(COL.amb_touren, data)
   }));
 }
 
-/* --------- Ergo --------- */
+/* ====== Ergo ====== */
 function renderErgo(app){
   app.appendChild(cardInfo("Info",
     "Ergotherapeuten „Unart“: Einheiten & Ziele – Trainingszwecke."));
@@ -426,14 +518,14 @@ function renderErgo(app){
       ${textarea("Inhalt/Übung","inhalt")}
       <div class="toolbar">
         <button class="btn primary" type="submit">Speichern</button>
-        <button class="btn" type="button" onclick="exportCSV(STORE.ergo.einheiten,'ergo-einheiten.csv')">CSV exportieren</button>
+        <button class="btn" type="button" onclick="(${(x)=>exportCSV(x,'ergo-einheiten.csv')})(${JSON.stringify(STORE.ergo.einheiten)})">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => { STORE.ergo.einheiten.push(data); save(); }
+    onSubmit: data => addDocTo(COL.ergo_einheiten, data)
   }));
 }
 
-/* --------- Apotheke --------- */
+/* ====== Apotheke ====== */
 function renderApotheke(app){
   app.appendChild(cardInfo("Info",
     "Sonnen Apotheke: Abgabe-Übungen – ausschließlich Trainingsdaten verwenden."));
@@ -449,14 +541,14 @@ function renderApotheke(app){
       ${input("Dosis/Anweisung","dosis",false,"text","z. B. 1-0-1, nach dem Essen")}
       <div class="toolbar">
         <button class="btn primary" type="submit">Speichern</button>
-        <button class="btn" type="button" onclick="exportCSV(STORE.apotheke.abgaben,'apotheke-abgaben.csv')">CSV exportieren</button>
+        <button class="btn" type="button" onclick="(${(x)=>exportCSV(x,'apotheke-abgaben.csv')})(${JSON.stringify(STORE.apotheke.abgaben)})">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => { STORE.apotheke.abgaben.push(data); save(); }
+    onSubmit: data => addDocTo(COL.apo_abgaben, data)
   }));
 }
 
-/* --------- Kinderarzt (mit Versichertennummer + Terminliste) --------- */
+/* ====== Kinderarzt ====== */
 function renderKinderarzt(app){
   app.appendChild(cardInfo("Info",
     "Kinderarzt-Praxis: Aufnahme & Besuchsdokumentation – kindgerecht, klar und kurz (Training)."));
@@ -473,10 +565,10 @@ function renderKinderarzt(app){
       ${input("Krankenkasse","kasse")}
       ${input("Versichertennummer","versnr",false,"text","z. B. A123456789")}
     `,
-    onSubmit: data => { STORE.kinderarzt.patienten.push(data); save(); }
+    onSubmit: data => addDocTo(COL.kid_patienten, data)
   }));
 
-  // Besuche / Sprechstunden-Doku
+  // Besuche
   app.appendChild(listFormCard({
     title:"Besuche",
     list: STORE.kinderarzt.besuche,
@@ -489,16 +581,16 @@ function renderKinderarzt(app){
       ${textarea("Therapie/Empfehlung","therapie")}
       <div class="toolbar">
         <button class="btn primary" type="submit">Speichern</button>
-        <button class="btn" type="button" onclick="exportCSV(STORE.kinderarzt.besuche,'kinderarzt-besuche.csv')">CSV exportieren</button>
+        <button class="btn" type="button" onclick="(${(x)=>exportCSV(x,'kinderarzt-besuche.csv')})(${JSON.stringify(STORE.kinderarzt.besuche)})">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => { STORE.kinderarzt.besuche.push(data); save(); }
+    onSubmit: data => addDocTo(COL.kid_besuche, data)
   }));
 
   // Termine (einfacher Kalender)
   app.appendChild(listFormCard({
     title:"Termine",
-    list: (STORE.kinderarzt.termine||[]).slice().sort((a,b)=> (a.datum+a.zeit).localeCompare(b.datum+b.zeit)),
+    list: STORE.kinderarzt.termine.slice().sort((a,b)=> (a.datum+a.zeit).localeCompare(b.datum+b.zeit)),
     renderLine: t => `<strong>${t.patient}</strong> — ${t.grund||"Termin"} am <em>${t.datum||"—"}</em> um <em>${t.zeit||"--:--"}</em>${t.notiz?("<br>"+t.notiz):""}`,
     formHTML: `
       ${select("Patient","patient", STORE.kinderarzt.patienten.map(p=>`${p.vorname} ${p.nachname}`))}
@@ -508,18 +600,14 @@ function renderKinderarzt(app){
       ${textarea("Notiz","notiz")}
       <div class="toolbar">
         <button class="btn primary" type="submit">Termin speichern</button>
-        <button class="btn" type="button" onclick="exportCSV(STORE.kinderarzt.termine,'kinderarzt-termine.csv')">CSV exportieren</button>
+        <button class="btn" type="button" onclick="(${(x)=>exportCSV(x,'kinderarzt-termine.csv')})(${JSON.stringify(STORE.kinderarzt.termine)})">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => { 
-      if (!STORE.kinderarzt.termine) STORE.kinderarzt.termine = [];
-      STORE.kinderarzt.termine.push(data); 
-      save(); 
-    }
+    onSubmit: data => addDocTo(COL.kid_termine, data)
   }));
 }
 
-/* --------- UI-Bausteine --------- */
+/* ====== UI-Bausteine ====== */
 function cardInfo(title, text){
   const d=ce("div",{className:"card"});
   d.innerHTML = `<h3>${title}</h3><p class="muted">${text}</p>`;
@@ -538,81 +626,98 @@ function select(label,name,options=[]){
 function listFormCard({title, list, renderLine, formHTML, onSubmit}){
   const wrap = ce("div",{className:"card"});
   wrap.innerHTML = `<h3>${title}</h3>`;
+
   if (!list?.length){
     const p = ce("p",{className:"muted"}); p.textContent = "Noch keine Einträge."; wrap.appendChild(p);
   } else {
     list.forEach(item => { const d=ce("div"); d.innerHTML = renderLine(item); wrap.appendChild(d); });
   }
+
   const form = ce("form"); form.innerHTML = formHTML;
-  form.onsubmit = (e)=>{ e.preventDefault(); const data = Object.fromEntries(new FormData(form)); onSubmit(data); render(); };
+  form.onsubmit = async (e)=>{
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(form));
+    await onSubmit(data); // in Firestore speichern
+    form.reset();
+  };
   wrap.appendChild(form);
   return wrap;
 }
 
-/* --------- Demo-Daten --------- */
-function seedDemo(){
+/* ====== Export (Gesamt) ====== */
+function exportAllJSON(){
+  // id/_ts entfernen für sauberes Trainings-JSON
+  const strip = (arr)=> arr.map(({id,_ts, ...rest})=>rest);
+  const out = {
+    kita: {
+      kinder: strip(STORE.kita.kinder),
+      beobachtungen: strip(STORE.kita.beobachtungen),
+      anwesenheit: strip(STORE.kita.anwesenheit),
+      eltern: strip(STORE.kita.eltern),
+    },
+    pflege: {
+      bewohner: strip(STORE.pflege.bewohner),
+      berichte: strip(STORE.pflege.berichte),
+      vitals: strip(STORE.pflege.vitals),
+      medis: strip(STORE.pflege.medis),
+      sturz: strip(STORE.pflege.sturz),
+    },
+    krankenhaus: {
+      patienten: strip(STORE.krankenhaus.patienten),
+      vitals: strip(STORE.krankenhaus.vitals),
+    },
+    ambulant: {
+      touren: strip(STORE.ambulant.touren),
+    },
+    ergo: {
+      einheiten: strip(STORE.ergo.einheiten),
+    },
+    apotheke: {
+      abgaben: strip(STORE.apotheke.abgaben),
+    },
+    kinderarzt: {
+      patienten: strip(STORE.kinderarzt.patienten),
+      besuche: strip(STORE.kinderarzt.besuche),
+      termine: strip(STORE.kinderarzt.termine),
+    }
+  };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(out,null,2)], {type:"application/json"}));
+  const a = ce("a", {href:url, download:"stiftung-export.json"}); document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 300);
+}
+
+/* ====== Demo-Daten in Firestore schreiben ====== */
+async function seedDemo(){
   // Kita
-  STORE.kita.kinder = [
-    { vorname:"Mila", nachname:"Klein", geburtstag:"2020-04-18", gruppe:"Sonnen" },
-    { vorname:"Yunus", nachname:"Aziz", geburtstag:"2019-11-02", gruppe:"Löwen" },
-  ];
-  STORE.kita.beobachtungen = [
-    { kindId:"Mila Klein", datum: today(), bereich:"Sprache", text:"Zwei- bis Dreiwortsätze, benennt Farben." }
-  ];
-  STORE.kita.anwesenheit = [{ kindId:"Mila Klein", datum: today(), status:"anwesend", abholer:"Mutter" }];
-  STORE.kita.eltern = [{ kindId:"Mila Klein", datum: today(), kanal:"Tür-und-Angel", inhalt:"Schlafenszeit besprochen." }];
+  await addDocTo(COL.kita_kinder, { vorname:"Mila", nachname:"Klein", geburtstag:"2020-04-18", gruppe:"Sonnen" });
+  await addDocTo(COL.kita_kinder, { vorname:"Yunus", nachname:"Aziz", geburtstag:"2019-11-02", gruppe:"Löwen" });
+  await addDocTo(COL.kita_beobachtungen, { kindId:"Mila Klein", datum: today(), bereich:"Sprache", text:"Zwei- bis Dreiwortsätze, benennt Farben." });
+  await addDocTo(COL.kita_anwesenheit, { kindId:"Mila Klein", datum: today(), status:"anwesend", abholer:"Mutter" });
+  await addDocTo(COL.kita_eltern, { kindId:"Mila Klein", datum: today(), kanal:"Tür-und-Angel", inhalt:"Schlafenszeit besprochen." });
 
   // Pflege
-  STORE.pflege.bewohner = [
-    { vorname:"Karl", nachname:"Schmidt", geburt:"1941-07-12", zimmer:"2.14", pflegegrad:3 },
-    { vorname:"Hanne", nachname:"Vogel", geburt:"1938-03-03", zimmer:"1.07", pflegegrad:2 },
-  ];
-  STORE.pflege.berichte = [
-    { bewohnerId:"Karl Schmidt", datum: today(), bereich:"ATL: Sich bewegen", text:"Mobilisation mit Rollator; wach, kooperativ." }
-  ];
-  STORE.pflege.vitals = [
-    { bewohnerId:"Karl Schmidt", datum: today(), puls:78, rr:"132/78", temp:36.6, spo2:97 }
-  ];
-  STORE.pflege.medis = [
-    { bewohnerId:"Karl Schmidt", datum: today(), medikament:"Metoprolol 47,5 mg", uhrzeit:"08:00", status:"gegeben", bemerkung:"—" }
-  ];
-  STORE.pflege.sturz = [
-    { bewohnerId:"Hanne Vogel", datum: today(), ort:"Bad", folgen:"Hämatom li. Unterarm", arzt:"nein", meldung:"Team & Angehörige informiert" }
-  ];
+  await addDocTo(COL.pflege_bewohner, { vorname:"Karl", nachname:"Schmidt", geburt:"1941-07-12", zimmer:"2.14", pflegegrad:3 });
+  await addDocTo(COL.pflege_bewohner, { vorname:"Hanne", nachname:"Vogel", geburt:"1938-03-03", zimmer:"1.07", pflegegrad:2 });
+  await addDocTo(COL.pflege_berichte, { bewohnerId:"Karl Schmidt", datum: today(), bereich:"ATL: Sich bewegen", text:"Mobilisation mit Rollator; wach, kooperativ." });
+  await addDocTo(COL.pflege_vitals, { bewohnerId:"Karl Schmidt", datum: today(), puls:78, rr:"132/78", temp:36.6, spo2:97 });
+  await addDocTo(COL.pflege_medis, { bewohnerId:"Karl Schmidt", datum: today(), medikament:"Metoprolol 47,5 mg", uhrzeit:"08:00", status:"gegeben", bemerkung:"—" });
+  await addDocTo(COL.pflege_sturz, { bewohnerId:"Hanne Vogel", datum: today(), ort:"Bad", folgen:"Hämatom li. Unterarm", arzt:"nein", meldung:"Team & Angehörige informiert" });
 
   // Krankenhaus
-  STORE.krankenhaus.patienten = [
-    { name:"Franz Meier", geburt:"1958-02-21", fach:"Innere", datum: today() }
-  ];
-  STORE.krankenhaus.vitals = [
-    { pat:"Franz Meier", datum: today(), puls:82, rr:"128/76", temp:36.8, spo2:98 }
-  ];
+  await addDocTo(COL.kh_patienten, { name:"Franz Meier", geburt:"1958-02-21", fach:"Innere", datum: today() });
+  await addDocTo(COL.kh_vitals, { pat:"Franz Meier", datum: today(), puls:82, rr:"128/76", temp:36.8, spo2:98 });
 
   // Ambulant
-  STORE.ambulant.touren = [
-    { klient:"Emine Kaya", datum: today(), leistung:"LK 3 – große Morgenpflege", von:"08:00", bis:"08:45" }
-  ];
+  await addDocTo(COL.amb_touren, { klient:"Emine Kaya", datum: today(), leistung:"LK 3 – große Morgenpflege", von:"08:00", bis:"08:45" });
 
   // Ergo
-  STORE.ergo.einheiten = [
-    { klient:"Nora Lehmann", datum: today(), ziel:"Feinmotorik", inhalt:"Perlen sortieren, Knetübung, Pinzettengriff." }
-  ];
+  await addDocTo(COL.ergo_einheiten, { klient:"Nora Lehmann", datum: today(), ziel:"Feinmotorik", inhalt:"Perlen sortieren, Knetübung, Pinzettengriff." });
 
   // Apotheke
-  STORE.apotheke.abgaben = [
-    { name:"Paul Weber", datum: today(), praeparat:"Platzhalterpräparat", dosis:"1-0-1 nach dem Essen" }
-  ];
+  await addDocTo(COL.apo_abgaben, { name:"Paul Weber", datum: today(), praeparat:"Platzhalterpräparat", dosis:"1-0-1 nach dem Essen" });
 
   // Kinderarzt
-  STORE.kinderarzt.patienten = [
-    { vorname:"Lina", nachname:"Yilmaz", geburt:"2021-06-12", kasse:"AOK", versnr:"A123456789" }
-  ];
-  STORE.kinderarzt.besuche = [
-    { patient:"Lina Yilmaz", datum: today(), grund:"U6", befund:"altersgerecht, unauffällig", therapie:"Beratung Ernährung & Schlaf" }
-  ];
-  STORE.kinderarzt.termine = [
-    { patient:"Lina Yilmaz", datum: today(), zeit:"10:30", grund:"Impfung", notiz:"Aufklärung zu Nebenwirkungen." }
-  ];
-
-  save(); render();
+  await addDocTo(COL.kid_patienten, { vorname:"Lina", nachname:"Yilmaz", geburt:"2021-06-12", kasse:"AOK", versnr:"A123456789" });
+  await addDocTo(COL.kid_besuche, { patient:"Lina Yilmaz", datum: today(), grund:"U6", befund:"altersgerecht, unauffällig", therapie:"Beratung Ernährung & Schlaf" });
+  await addDocTo(COL.kid_termine, { patient:"Lina Yilmaz", datum: today(), zeit:"10:30", grund:"Impfung", notiz:"Aufklärung zu Nebenwirkungen." });
 }
