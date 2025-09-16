@@ -1,9 +1,12 @@
-/* Verbessert:
-   - Bunter Hintergrund (CSS)
-   - Funktionierender Dropdown per Klick (öffnen/schließen, ESC, Outside-Click)
-   - Hero pro Seite (Titel+Slogan)
-   - Druckbutton immer rechts oben
-   - Unternehmen inkl. Kinderarzt-Praxis
+/* Hammouda-Itani-Stiftung – korrigierte, funktionssichere Version
+   - Stabiler Dropdown per Klick (öffnet/schließt, Outside-Click, ESC, ARIA)
+   - Animierter, farbenfroher Hintergrund
+   - Hero je Seite (Titel + Slogan)
+   - Druckbutton immer oben rechts
+   - Infotexte je Seite
+   - Kinderarzt-Praxis inkludiert
+   - Nur Unternehmen im Dropdown; Sonstiges separat
+   - Lokale Speicherung (localStorage)
 */
 
 const qs = (s) => document.querySelector(s);
@@ -22,57 +25,64 @@ const PAGES = [
   { id:"kinderarzt",    title:"Kinderarzt-Praxis", slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten." },
 ];
 
-const state = { page: "home", storeKey: "stiftung-store-v4" };
+const state = { page: "home", storeKey: "stiftung-store-v5" };
 let STORE = initStore();
 
-function initStore() {
+/* ---------- Storage ---------- */
+function initStore(){
   const raw = localStorage.getItem(state.storeKey);
   if (raw) return JSON.parse(raw);
   const seed = {
-    meta: { version: 4, created: new Date().toISOString() },
-    kita: { kinder: [], beobachtungen: [], anwesenheit: [], eltern: [] },
-    pflege: { bewohner: [], berichte: [], vitals: [], medis: [], sturz: [] },
-    krankenhaus: { patienten: [], vitals: [] },
-    ambulant: { touren: [] },
-    ergo: { einheiten: [] },
-    apotheke: { abgaben: [] },
-    kinderarzt: { patienten: [], besuche: [] }
+    meta:{version:5, created:new Date().toISOString()},
+    kita:{kinder:[], beobachtungen:[], anwesenheit:[], eltern:[]},
+    pflege:{bewohner:[], berichte:[], vitals:[], medis:[], sturz:[]},
+    krankenhaus:{patienten:[], vitals:[]},
+    ambulant:{touren:[]},
+    ergo:{einheiten:[]},
+    apotheke:{abgaben:[]},
+    kinderarzt:{patienten:[], besuche:[]}
   };
   localStorage.setItem(state.storeKey, JSON.stringify(seed));
   return seed;
 }
 function save(){ localStorage.setItem(state.storeKey, JSON.stringify(STORE)); }
 
+/* ---------- Exporte ---------- */
 function exportCSV(rows, name="export.csv"){
   if (!rows?.length) { alert("Keine Daten zum Exportieren."); return; }
   const keys = [...new Set(rows.flatMap(r => Object.keys(r)))];
-  const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const csv = [keys.map(esc).join(","), ...rows.map(r => keys.map(k => esc(r[k])).join(","))].join("\n");
-  const blob = new Blob([csv], { type:"text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = ce("a", { href:url, download:name }); document.body.appendChild(a); a.click(); a.remove();
+  const esc = (v) => `"${String(v ?? "").replace(/"/g,'""')}"`;
+  const csv = [keys.map(esc).join(","), ...rows.map(r=>keys.map(k=>esc(r[k])).join(","))].join("\n");
+  const url = URL.createObjectURL(new Blob([csv], {type:"text/csv"}));
+  const a = ce("a", {href:url, download:name}); document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 300);
 }
 function exportJSON(obj, name="export.json"){
-  const blob = new Blob([JSON.stringify(obj, null, 2)], { type:"application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = ce("a", { href:url, download:name }); document.body.appendChild(a); a.click(); a.remove();
+  const url = URL.createObjectURL(new Blob([JSON.stringify(obj,null,2)], {type:"application/json"}));
+  const a = ce("a", {href:url, download:name}); document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 300);
 }
 
-/* ---------- UI Boot ---------- */
+/* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", () => {
+  // Dropdowns
+  setupDropdown("companyDropdown", "companyBtn", "companyMenu");
+  setupDropdown("moreDropdown", "moreBtn", "moreMenu");
   buildCompanyMenu();
-  setupDropdown("companyDropdown");
-  setupDropdown("moreDropdown");
-  setupDarkFromPref();
+
+  // Dark Mode Voreinstellung (System)
+  if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+    document.documentElement.classList.add("dark");
+  }
+
+  // Druck
   qs("#printBtn").addEventListener("click", () => window.print());
-  render();
 
   // Sonstiges-Aktionen
   document.body.addEventListener("click", (e)=>{
-    if (e.target.matches("#moreMenu button")) {
-      const act = e.target.dataset.action;
+    if (e.target.closest("#moreMenu button")) {
+      const btn = e.target.closest("button");
+      const act = btn.dataset.action;
       if (act==="seed") seedDemo();
       if (act==="export-json") exportJSON(STORE, "stiftung-export.json");
       if (act==="dark") document.documentElement.classList.toggle("dark");
@@ -83,46 +93,45 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   });
+
+  render();
 });
 
-/* ---------- Dropdown-Logik (Klick, Outside-Click, ESC, Fokus) ---------- */
-function setupDropdown(id){
-  const dd = qs("#"+id);
-  const btn = dd.querySelector("button");
-  const menu = dd.querySelector(".menu");
-  const open = () => { dd.classList.add("open"); btn.setAttribute("aria-expanded","true"); menu.focus(); };
-  const close = () => { dd.classList.remove("open"); btn.setAttribute("aria-expanded","false"); };
+/* ---------- Dropdown-Logik: Klick/Close/ESC ---------- */
+function setupDropdown(wrapperId, buttonId, menuId){
+  const wrap = qs("#"+wrapperId);
+  const btn  = qs("#"+buttonId);
+  const menu = qs("#"+menuId);
 
-  btn.addEventListener("click", (e)=>{ e.stopPropagation(); dd.classList.toggle("open"); 
-    const exp = dd.classList.contains("open"); btn.setAttribute("aria-expanded", exp ? "true" : "false");
-    if (exp) menu.focus();
+  const open = ()=>{ wrap.classList.add("open"); btn.setAttribute("aria-expanded","true"); menu.focus(); };
+  const close= ()=>{ wrap.classList.remove("open"); btn.setAttribute("aria-expanded","false"); };
+
+  btn.addEventListener("click", (e)=>{ e.stopPropagation(); wrap.classList.toggle("open"); 
+    btn.setAttribute("aria-expanded", wrap.classList.contains("open") ? "true":"false");
+    if (wrap.classList.contains("open")) menu.focus();
   });
 
-  document.addEventListener("click", (e)=>{ if (!dd.contains(e.target)) close(); });
-  document.addEventListener("keydown", (e)=>{ if (e.key === "Escape") close(); });
-}
-function setupDarkFromPref(){
-  const m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  if (m) document.documentElement.classList.add("dark");
+  // Outside-Click
+  document.addEventListener("click", (e)=>{ if (!wrap.contains(e.target)) close(); });
+  // ESC
+  document.addEventListener("keydown", (e)=>{ if (e.key==="Escape") close(); });
 }
 
-/* ---------- Unternehmen-Menü befüllen ---------- */
+/* ---------- Unternehmen-Menü füllen ---------- */
 function buildCompanyMenu(){
   const menu = qs("#companyMenu");
   menu.innerHTML = "";
   PAGES.filter(p=>p.id!=="home").forEach(p=>{
-    const a = ce("a", { href:"#", className:"kachel", role:"menuitem" });
+    const a = ce("a",{href:"#", className:"kachel", role:"menuitem"});
     a.innerHTML = `<div class="icon">★</div><div><strong>${p.title}</strong><div class="muted">${p.slogan}</div></div>`;
-    a.addEventListener("click", (ev)=>{ ev.preventDefault(); switchTo(p.id); qs("#companyDropdown").classList.remove("open"); });
+    a.addEventListener("click",(ev)=>{ ev.preventDefault(); switchTo(p.id); qs("#companyDropdown").classList.remove("open"); qs("#companyBtn").setAttribute("aria-expanded","false"); });
     menu.appendChild(a);
   });
 }
 
 /* ---------- Routing ---------- */
-function switchTo(id){
-  state.page = id;
-  render();
-}
+function switchTo(id){ state.page=id; render(); }
+
 function render(){
   const page = PAGES.find(p=>p.id===state.page) || PAGES[0];
 
@@ -136,7 +145,6 @@ function render(){
   `;
 
   const app = qs("#app"); app.innerHTML = "";
-
   if (page.id==="home") return renderHome(app);
   if (page.id==="verwaltung") return renderVerwaltung(app);
   if (page.id==="kita") return renderKita(app);
@@ -151,8 +159,7 @@ function render(){
 /* ---------- Seiten ---------- */
 function renderHome(app){
   app.appendChild(cardInfo("Liebe Mitarbeitenden,",
-    "es ist uns eine große Freude, euch als Team in unserer Unternehmensgruppe willkommen zu heißen. Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und vollständig lokal gespeichert. Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten.")
-  );
+    "es ist uns eine große Freude, euch als Team in unserer Unternehmensgruppe willkommen zu heißen. Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und vollständig lokal gespeichert. Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten."));
 
   const grid = ce("div",{className:"grid"});
   PAGES.filter(p=>p.id!=="home").forEach(p=>{
@@ -168,15 +175,14 @@ function renderVerwaltung(app){
   app.appendChild(cardInfo("Hinweis",
     "Zentrale Verwaltung: Hier können später Richtlinien, Checklisten und Vorlagen liegen (Training/Platzhalter)."));
   const tools = ce("div",{className:"card"});
-  tools.innerHTML = `
-    <h3>Werkzeuge</h3>
+  tools.innerHTML = `<h3>Werkzeuge</h3>
     <div class="toolbar">
       <button class="btn primary" onclick="exportJSON(STORE,'stiftung-export.json')">Gesamtexport (JSON)</button>
     </div>`;
   app.appendChild(tools);
 }
 
-/* ---------- KITA ---------- */
+/* ---------- Kita ---------- */
 function renderKita(app){
   app.appendChild(cardInfo("Info",
     "Die drei Löwen Kindergarten: Bitte nur Übungsdaten verwenden. Alle Einträge werden lokal gespeichert."));
@@ -492,25 +498,25 @@ function cardInfo(title, text){
   return d;
 }
 function badge(txt){ return `<span class="badge">${txt}</span>`; }
-function input(label, name, required=false, type="text", value="", extraAttrs={}){
+function input(label,name,required=false,type="text",value="",extraAttrs={}){
   const attrs = Object.entries(extraAttrs).map(([k,v])=>`${k}="${v}"`).join(" ");
   return `<label>${label}<input name="${name}" type="${type}" value="${value||""}" ${required?"required":""} ${attrs}></label>`;
 }
-function textarea(label, name, value=""){ return `<label>${label}<textarea name="${name}">${value||""}</textarea></label>`; }
-function select(label, name, options=[]){
+function textarea(label,name,value=""){ return `<label>${label}<textarea name="${name}">${value||""}</textarea></label>`; }
+function select(label,name,options=[]){
   const opts = options.map(o=>`<option value="${o}">${o}</option>`).join("");
   return `<label>${label}<select name="${name}">${opts}</select></label>`;
 }
 function listFormCard({title, list, renderLine, formHTML, onSubmit}){
   const wrap = ce("div",{className:"card"});
   wrap.innerHTML = `<h3>${title}</h3>`;
-  if (!list || !list.length) {
-    const p = ce("p",{className:"muted"}); p.textContent="Noch keine Einträge."; wrap.appendChild(p);
+  if (!list?.length){
+    const p = ce("p",{className:"muted"}); p.textContent = "Noch keine Einträge."; wrap.appendChild(p);
   } else {
-    list.forEach(item => { const d=ce("div"); d.innerHTML=renderLine(item); wrap.appendChild(d); });
+    list.forEach(item => { const d=ce("div"); d.innerHTML = renderLine(item); wrap.appendChild(d); });
   }
   const form = ce("form"); form.innerHTML = formHTML;
-  form.onsubmit=(e)=>{ e.preventDefault(); const data=Object.fromEntries(new FormData(form)); onSubmit(data); render(); };
+  form.onsubmit = (e)=>{ e.preventDefault(); const data = Object.fromEntries(new FormData(form)); onSubmit(data); render(); };
   wrap.appendChild(form);
   return wrap;
 }
