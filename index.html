@@ -9,7 +9,7 @@
 </head>
 <body>
   <!-- Lebendiger, farbiger Hintergrund -->
-  <div class="bg">
+  <div class="bg" aria-hidden="true">
     <div class="gradient"></div>
     <div class="blob b1"></div>
     <div class="blob b2"></div>
@@ -32,18 +32,21 @@
     </div>
 
     <div class="header-actions">
-      <button id="printBtn" class="btn ghost" title="Druckansicht">🖨️</button>
+      <button id="printBtn" class="btn ghost" title="Druckansicht öffnen">🖨️</button>
 
-      <!-- FUNKTIONIERENDER Dropdown (per Klick, nicht Hover) -->
+      <!-- Unternehmen-Dropdown (funktioniert per Klick) -->
       <div class="dropdown mega" id="companyDropdown">
-        <button class="btn primary big" aria-haspopup="true" aria-expanded="false" aria-controls="companyMenu">
+        <button class="btn primary big" id="companyBtn" aria-haspopup="true" aria-expanded="false" aria-controls="companyMenu">
           Unternehmen ▾
         </button>
         <div class="menu grid" id="companyMenu" role="menu" tabindex="-1" aria-label="Unternehmen"></div>
       </div>
 
+      <!-- Sonstiges-Dropdown -->
       <div class="dropdown" id="moreDropdown">
-        <button class="btn" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu">Sonstiges ▾</button>
+        <button class="btn" id="moreBtn" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu">
+          Sonstiges ▾
+        </button>
         <div class="menu" id="moreMenu" role="menu" tabindex="-1">
           <button data-action="seed" role="menuitem">Demo-Daten laden</button>
           <button data-action="export-json" role="menuitem">Export: JSON</button>
@@ -54,7 +57,7 @@
     </div>
   </header>
 
-  <!-- Hero (Titel + Untertitel pro Seite) -->
+  <!-- Hero (Unternehmen + Slogan je Seite) -->
   <section id="hero" class="hero"></section>
 
   <main id="app"></main>
@@ -64,6 +67,3 @@
   </footer>
 </body>
 </html>
-
-</html>
-
