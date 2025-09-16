@@ -246,7 +246,7 @@ function render(){
 function renderHome(app){
   app.appendChild(cardInfo(
     "Liebe Mitarbeitenden,",
-    "es ist uns eine große Freude, euch als Team in unserer Unternehmensgruppe willkommen zu heißen. Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und zentral synchronisiert. Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten."
+    "es ist uns eine große Freude, euch als Team und Mitbegründer in unserer Unternehmensgruppe willkommen zu heißen. Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und zentral synchronisiert. Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten. Hier findet ihr in Zukunft wertvolle News, Aktuelle Nachrichten, Kurze Infos und Fortbildungen und vieles Spannendes rund um unsere Unternehmensgruppe. Eure Stiftungs-Präsident: Z. Bremkens und eure Stiftungs-Vorsitzenden: B. Hammouda und A.R. Itani sowie die Geschäftsführerin der Stiftung V. Lauth"
   ));
 }
 
