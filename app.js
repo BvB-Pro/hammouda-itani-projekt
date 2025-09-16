@@ -1,53 +1,54 @@
-/* Hammouda-Itani-Stiftung – korrigierte, funktionssichere Version
-   - Stabiler Dropdown per Klick (öffnet/schließt, Outside-Click, ESC, ARIA)
-   - Animierter, farbenfroher Hintergrund
-   - Hero je Seite (Titel + Slogan)
-   - Druckbutton immer oben rechts
-   - Infotexte je Seite
-   - Kinderarzt-Praxis inkludiert
-   - Nur Unternehmen im Dropdown; Sonstiges separat
-   - Lokale Speicherung (localStorage)
+/* Hammouda-Itani-Stiftung – Vollversion app.js
+   Features:
+   - Unternehmen-Dropdown per Klick (Outside-Click/ESC, ARIA)
+   - Hero pro Seite (Titel + Slogan)
+   - Druckbutton (immer oben rechts)
+   - Alle Bereiche mit Formularen & Speicherung (localStorage)
+   - CSV-Exporte + Gesamt-JSON-Export
+   - Kinderarzt: Versichertennummer + Terminliste
 */
 
 const qs = (s) => document.querySelector(s);
 const ce = (t, p = {}) => Object.assign(document.createElement(t), p);
 const today = () => new Date().toISOString().slice(0,10);
 
+/* --------- Routing / Seiten --------- */
 const PAGES = [
-  { id:"home",          title:"Hammouda-Itani Stiftung", slogan:"Die Stiftung von uns für uns." },
-  { id:"verwaltung",    title:"Hand in Hand Verwaltung", slogan:"Zentrale Steuerung für starke Teams." },
-  { id:"kita",          title:"Die drei Löwen Kindergarten", slogan:"Der Kindergarten für echte Löwen." },
-  { id:"krankenhaus",   title:"Mond-Krankenhaus", slogan:"Medizin mit Herz – Tag & Nacht." },
-  { id:"pflegeheim",    title:"Pflegeheim der Gemeinschaft", slogan:"Würde. Nähe. Gemeinschaft." },
+  { id:"home",          title:"Hammouda-Itani Stiftung",      slogan:"Die Stiftung von uns für uns." },
+  { id:"verwaltung",    title:"Hand in Hand Verwaltung",       slogan:"Zentrale Steuerung für starke Teams." },
+  { id:"kita",          title:"Die drei Löwen Kindergarten",   slogan:"Der Kindergarten für echte Löwen." },
+  { id:"krankenhaus",   title:"Mond-Krankenhaus",              slogan:"Medizin mit Herz – Tag & Nacht." },
+  { id:"pflegeheim",    title:"Pflegeheim der Gemeinschaft",   slogan:"Würde. Nähe. Gemeinschaft." },
   { id:"ambulant",      title:"Ambulanter Pflegedienst zum Stern", slogan:"Hilfe, die zu Ihnen kommt." },
-  { id:"ergo",          title:"Ergotherapeuten „Unart“", slogan:"Ungewohnt gut – Therapie neu gedacht." },
-  { id:"apotheke",      title:"Sonnen Apotheke", slogan:"Die Apotheke mit dem Strahlen." },
-  { id:"kinderarzt",    title:"Kinderarzt-Praxis", slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten." },
+  { id:"ergo",          title:"Ergotherapeuten „Unart“",       slogan:"Ungewohnt gut – Therapie neu gedacht." },
+  { id:"apotheke",      title:"Sonnen Apotheke",               slogan:"Die Apotheke mit dem Strahlen." },
+  { id:"kinderarzt",    title:"Kinderarzt-Praxis",             slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten." },
 ];
 
-const state = { page: "home", storeKey: "stiftung-store-v5" };
+const state = { page: "home", storeKey: "stiftung-store-v6" };
+
+/* --------- Storage --------- */
 let STORE = initStore();
 
-/* ---------- Storage ---------- */
 function initStore(){
   const raw = localStorage.getItem(state.storeKey);
   if (raw) return JSON.parse(raw);
   const seed = {
-    meta:{version:5, created:new Date().toISOString()},
+    meta:{version:6, created:new Date().toISOString()},
     kita:{kinder:[], beobachtungen:[], anwesenheit:[], eltern:[]},
     pflege:{bewohner:[], berichte:[], vitals:[], medis:[], sturz:[]},
     krankenhaus:{patienten:[], vitals:[]},
     ambulant:{touren:[]},
     ergo:{einheiten:[]},
     apotheke:{abgaben:[]},
-    kinderarzt:{patienten:[], besuche:[]}
+    kinderarzt:{patienten:[], besuche:[], termine:[]}
   };
   localStorage.setItem(state.storeKey, JSON.stringify(seed));
   return seed;
 }
 function save(){ localStorage.setItem(state.storeKey, JSON.stringify(STORE)); }
 
-/* ---------- Exporte ---------- */
+/* --------- Export/Tools --------- */
 function exportCSV(rows, name="export.csv"){
   if (!rows?.length) { alert("Keine Daten zum Exportieren."); return; }
   const keys = [...new Set(rows.flatMap(r => Object.keys(r)))];
@@ -63,14 +64,13 @@ function exportJSON(obj, name="export.json"){
   setTimeout(()=>URL.revokeObjectURL(url), 300);
 }
 
-/* ---------- Boot ---------- */
+/* --------- Boot --------- */
 document.addEventListener("DOMContentLoaded", () => {
-  // Dropdowns
   setupDropdown("companyDropdown", "companyBtn", "companyMenu");
   setupDropdown("moreDropdown", "moreBtn", "moreMenu");
   buildCompanyMenu();
 
-  // Dark Mode Voreinstellung (System)
+  // System-Dark-Mode als Start
   if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
     document.documentElement.classList.add("dark");
   }
@@ -97,41 +97,43 @@ document.addEventListener("DOMContentLoaded", () => {
   render();
 });
 
-/* ---------- Dropdown-Logik: Klick/Close/ESC ---------- */
+/* --------- Dropdown-Logik (Klick/Outside/ESC/ARIA) --------- */
 function setupDropdown(wrapperId, buttonId, menuId){
   const wrap = qs("#"+wrapperId);
   const btn  = qs("#"+buttonId);
   const menu = qs("#"+menuId);
 
-  const open = ()=>{ wrap.classList.add("open"); btn.setAttribute("aria-expanded","true"); menu.focus(); };
-  const close= ()=>{ wrap.classList.remove("open"); btn.setAttribute("aria-expanded","false"); };
-
-  btn.addEventListener("click", (e)=>{ e.stopPropagation(); wrap.classList.toggle("open"); 
+  const close= ()=>{ wrap.classList.remove("open"); btn?.setAttribute("aria-expanded","false"); };
+  btn?.addEventListener("click", (e)=>{ 
+    e.stopPropagation(); 
+    wrap.classList.toggle("open"); 
     btn.setAttribute("aria-expanded", wrap.classList.contains("open") ? "true":"false");
-    if (wrap.classList.contains("open")) menu.focus();
+    if (wrap.classList.contains("open")) menu?.focus();
   });
 
-  // Outside-Click
   document.addEventListener("click", (e)=>{ if (!wrap.contains(e.target)) close(); });
-  // ESC
   document.addEventListener("keydown", (e)=>{ if (e.key==="Escape") close(); });
 }
 
-/* ---------- Unternehmen-Menü füllen ---------- */
+/* --------- Unternehmen-Menü --------- */
 function buildCompanyMenu(){
   const menu = qs("#companyMenu");
+  if (!menu) return;
   menu.innerHTML = "";
   PAGES.filter(p=>p.id!=="home").forEach(p=>{
     const a = ce("a",{href:"#", className:"kachel", role:"menuitem"});
     a.innerHTML = `<div class="icon">★</div><div><strong>${p.title}</strong><div class="muted">${p.slogan}</div></div>`;
-    a.addEventListener("click",(ev)=>{ ev.preventDefault(); switchTo(p.id); qs("#companyDropdown").classList.remove("open"); qs("#companyBtn").setAttribute("aria-expanded","false"); });
+    a.addEventListener("click",(ev)=>{
+      ev.preventDefault(); switchTo(p.id);
+      const dd = qs("#companyDropdown"); dd?.classList.remove("open");
+      qs("#companyBtn")?.setAttribute("aria-expanded","false");
+    });
     menu.appendChild(a);
   });
 }
 
-/* ---------- Routing ---------- */
+/* --------- Routing --------- */
 function switchTo(id){ state.page=id; render(); }
-
 function render(){
   const page = PAGES.find(p=>p.id===state.page) || PAGES[0];
 
@@ -144,6 +146,7 @@ function render(){
     </div>
   `;
 
+  // Main
   const app = qs("#app"); app.innerHTML = "";
   if (page.id==="home") return renderHome(app);
   if (page.id==="verwaltung") return renderVerwaltung(app);
@@ -156,11 +159,10 @@ function render(){
   if (page.id==="kinderarzt") return renderKinderarzt(app);
 }
 
-/* ---------- Seiten ---------- */
+/* --------- Home / Verwaltung --------- */
 function renderHome(app){
   app.appendChild(cardInfo("Liebe Mitarbeitenden,",
     "es ist uns eine große Freude, euch als Team in unserer Unternehmensgruppe willkommen zu heißen. Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und vollständig lokal gespeichert. Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten."));
-
   const grid = ce("div",{className:"grid"});
   PAGES.filter(p=>p.id!=="home").forEach(p=>{
     const a = ce("a",{href:"#", className:"kachel"});
@@ -182,7 +184,7 @@ function renderVerwaltung(app){
   app.appendChild(tools);
 }
 
-/* ---------- Kita ---------- */
+/* --------- Kita --------- */
 function renderKita(app){
   app.appendChild(cardInfo("Info",
     "Die drei Löwen Kindergarten: Bitte nur Übungsdaten verwenden. Alle Einträge werden lokal gespeichert."));
@@ -252,7 +254,7 @@ function renderKita(app){
   }));
 }
 
-/* ---------- Pflege ---------- */
+/* --------- Pflegeheim --------- */
 function renderPflege(app){
   app.appendChild(cardInfo("Info",
     "Pflegeheim der Gemeinschaft: Training für Bewohner, Berichte, Vitalwerte, Medigabe (nur Übung!) und Sturzmeldungen."));
@@ -346,7 +348,7 @@ function renderPflege(app){
   }));
 }
 
-/* ---------- Krankenhaus ---------- */
+/* --------- Krankenhaus --------- */
 function renderKrankenhaus(app){
   app.appendChild(cardInfo("Info",
     "Mond-Krankenhaus: Einfache Aufnahme & Vitalwerte als Trainingsbeispiel."));
@@ -384,7 +386,7 @@ function renderKrankenhaus(app){
   }));
 }
 
-/* ---------- Ambulant ---------- */
+/* --------- Ambulant --------- */
 function renderAmbulant(app){
   app.appendChild(cardInfo("Info",
     "Ambulanter Pflegedienst zum Stern: Einfache Touren- & Einsatzdoku (Training)."));
@@ -408,7 +410,7 @@ function renderAmbulant(app){
   }));
 }
 
-/* ---------- Ergo ---------- */
+/* --------- Ergo --------- */
 function renderErgo(app){
   app.appendChild(cardInfo("Info",
     "Ergotherapeuten „Unart“: Einheiten & Ziele – Trainingszwecke."));
@@ -431,7 +433,7 @@ function renderErgo(app){
   }));
 }
 
-/* ---------- Apotheke ---------- */
+/* --------- Apotheke --------- */
 function renderApotheke(app){
   app.appendChild(cardInfo("Info",
     "Sonnen Apotheke: Abgabe-Übungen – ausschließlich Trainingsdaten verwenden."));
@@ -454,24 +456,27 @@ function renderApotheke(app){
   }));
 }
 
-/* ---------- Kinderarzt ---------- */
+/* --------- Kinderarzt (mit Versichertennummer + Terminliste) --------- */
 function renderKinderarzt(app){
   app.appendChild(cardInfo("Info",
     "Kinderarzt-Praxis: Aufnahme & Besuchsdokumentation – kindgerecht, klar und kurz (Training)."));
 
+  // Patienten inkl. Versichertennummer
   app.appendChild(listFormCard({
     title:"Patienten",
     list: STORE.kinderarzt.patienten,
-    renderLine: p => `<strong>${p.vorname} ${p.nachname}</strong> — geb. ${p.geburt||"—"} ${p.kasse?badge(p.kasse):""}`,
+    renderLine: p => `<strong>${p.vorname} ${p.nachname}</strong> — geb. ${p.geburt||"—"} ${p.kasse?badge(p.kasse):""} ${p.versnr?badge("Vers.-Nr. "+p.versnr):""}`,
     formHTML: `
       ${input("Vorname","vorname",true)}
       ${input("Nachname","nachname",true)}
       ${input("Geburt","geburt",false,"date")}
       ${input("Krankenkasse","kasse")}
+      ${input("Versichertennummer","versnr",false,"text","z. B. A123456789")}
     `,
     onSubmit: data => { STORE.kinderarzt.patienten.push(data); save(); }
   }));
 
+  // Besuche / Sprechstunden-Doku
   app.appendChild(listFormCard({
     title:"Besuche",
     list: STORE.kinderarzt.besuche,
@@ -489,9 +494,32 @@ function renderKinderarzt(app){
     `,
     onSubmit: data => { STORE.kinderarzt.besuche.push(data); save(); }
   }));
+
+  // Termine (einfacher Kalender)
+  app.appendChild(listFormCard({
+    title:"Termine",
+    list: (STORE.kinderarzt.termine||[]).slice().sort((a,b)=> (a.datum+a.zeit).localeCompare(b.datum+b.zeit)),
+    renderLine: t => `<strong>${t.patient}</strong> — ${t.grund||"Termin"} am <em>${t.datum||"—"}</em> um <em>${t.zeit||"--:--"}</em>${t.notiz?("<br>"+t.notiz):""}`,
+    formHTML: `
+      ${select("Patient","patient", STORE.kinderarzt.patienten.map(p=>`${p.vorname} ${p.nachname}`))}
+      ${input("Datum","datum",true,"date",today())}
+      ${input("Uhrzeit","zeit",true,"time","09:00")}
+      ${input("Grund","grund",false,"text","z. B. U6, Impfung, Fieber")}
+      ${textarea("Notiz","notiz")}
+      <div class="toolbar">
+        <button class="btn primary" type="submit">Termin speichern</button>
+        <button class="btn" type="button" onclick="exportCSV(STORE.kinderarzt.termine,'kinderarzt-termine.csv')">CSV exportieren</button>
+      </div>
+    `,
+    onSubmit: data => { 
+      if (!STORE.kinderarzt.termine) STORE.kinderarzt.termine = [];
+      STORE.kinderarzt.termine.push(data); 
+      save(); 
+    }
+  }));
 }
 
-/* ---------- Bausteine ---------- */
+/* --------- UI-Bausteine --------- */
 function cardInfo(title, text){
   const d=ce("div",{className:"card"});
   d.innerHTML = `<h3>${title}</h3><p class="muted">${text}</p>`;
@@ -521,8 +549,9 @@ function listFormCard({title, list, renderLine, formHTML, onSubmit}){
   return wrap;
 }
 
-/* ---------- Demo-Daten ---------- */
+/* --------- Demo-Daten --------- */
 function seedDemo(){
+  // Kita
   STORE.kita.kinder = [
     { vorname:"Mila", nachname:"Klein", geburtstag:"2020-04-18", gruppe:"Sonnen" },
     { vorname:"Yunus", nachname:"Aziz", geburtstag:"2019-11-02", gruppe:"Löwen" },
@@ -533,6 +562,7 @@ function seedDemo(){
   STORE.kita.anwesenheit = [{ kindId:"Mila Klein", datum: today(), status:"anwesend", abholer:"Mutter" }];
   STORE.kita.eltern = [{ kindId:"Mila Klein", datum: today(), kanal:"Tür-und-Angel", inhalt:"Schlafenszeit besprochen." }];
 
+  // Pflege
   STORE.pflege.bewohner = [
     { vorname:"Karl", nachname:"Schmidt", geburt:"1941-07-12", zimmer:"2.14", pflegegrad:3 },
     { vorname:"Hanne", nachname:"Vogel", geburt:"1938-03-03", zimmer:"1.07", pflegegrad:2 },
@@ -550,6 +580,7 @@ function seedDemo(){
     { bewohnerId:"Hanne Vogel", datum: today(), ort:"Bad", folgen:"Hämatom li. Unterarm", arzt:"nein", meldung:"Team & Angehörige informiert" }
   ];
 
+  // Krankenhaus
   STORE.krankenhaus.patienten = [
     { name:"Franz Meier", geburt:"1958-02-21", fach:"Innere", datum: today() }
   ];
@@ -557,23 +588,30 @@ function seedDemo(){
     { pat:"Franz Meier", datum: today(), puls:82, rr:"128/76", temp:36.8, spo2:98 }
   ];
 
+  // Ambulant
   STORE.ambulant.touren = [
     { klient:"Emine Kaya", datum: today(), leistung:"LK 3 – große Morgenpflege", von:"08:00", bis:"08:45" }
   ];
 
+  // Ergo
   STORE.ergo.einheiten = [
     { klient:"Nora Lehmann", datum: today(), ziel:"Feinmotorik", inhalt:"Perlen sortieren, Knetübung, Pinzettengriff." }
   ];
 
+  // Apotheke
   STORE.apotheke.abgaben = [
     { name:"Paul Weber", datum: today(), praeparat:"Platzhalterpräparat", dosis:"1-0-1 nach dem Essen" }
   ];
 
+  // Kinderarzt
   STORE.kinderarzt.patienten = [
-    { vorname:"Lina", nachname:"Yilmaz", geburt:"2021-06-12", kasse:"AOK" }
+    { vorname:"Lina", nachname:"Yilmaz", geburt:"2021-06-12", kasse:"AOK", versnr:"A123456789" }
   ];
   STORE.kinderarzt.besuche = [
     { patient:"Lina Yilmaz", datum: today(), grund:"U6", befund:"altersgerecht, unauffällig", therapie:"Beratung Ernährung & Schlaf" }
+  ];
+  STORE.kinderarzt.termine = [
+    { patient:"Lina Yilmaz", datum: today(), zeit:"10:30", grund:"Impfung", notiz:"Aufklärung zu Nebenwirkungen." }
   ];
 
   save(); render();
