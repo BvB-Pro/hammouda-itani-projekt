@@ -8,51 +8,60 @@
   <script defer src="app.js"></script>
 </head>
 <body>
+  <!-- Lebendiger Hintergrund -->
+  <div class="bg">
+    <div class="blob b1"></div>
+    <div class="blob b2"></div>
+    <div class="blob b3"></div>
+  </div>
+
   <header class="app-header">
     <div class="brand">
-      <!-- Inline-Logo (SVG) -->
       <svg width="28" height="28" viewBox="0 0 48 48" aria-hidden="true">
         <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#2d6cdf"/>
+          <stop offset="0" stop-color="#ff9a9e"/><stop offset="1" stop-color="#2d6cdf"/>
         </linearGradient></defs>
         <circle cx="24" cy="24" r="22" fill="url(#g)"/>
         <path d="M14 26h20M24 14v20" stroke="white" stroke-width="3" stroke-linecap="round"/>
       </svg>
       <div class="brand-text">
         <strong>Hammouda-Itani-Stiftung</strong>
-        <small>Copyright Abdul Rahman Itani - Anleiter GeSo ; Die Boje</small>
+        <small>Trainings-Website für Dokumentationsübungen</small>
       </div>
     </div>
 
     <div class="header-actions">
-      <button id="darkToggle" class="btn" title="Dark Mode umschalten">🌙</button>
+      <button id="printBtn" class="btn ghost" title="Druckansicht">🖨️ Druckansicht</button>
+
+      <div class="dropdown mega">
+        <button class="btn primary big">Unternehmen ▾</button>
+        <div class="menu grid">
+          <!-- gefüllt durch JS -->
+        </div>
+      </div>
+
       <div class="dropdown">
-        <button class="btn">Daten ▾</button>
+        <button class="btn">Sonstiges ▾</button>
         <div class="menu">
           <button data-action="seed">Demo-Daten laden</button>
           <button data-action="export-json">Export: JSON</button>
-          <button data-action="print">Druckansicht</button>
+          <button data-action="dark">Dark Mode umschalten</button>
           <button data-action="reset" class="danger">Alle lokalen Daten löschen</button>
         </div>
       </div>
     </div>
   </header>
 
-  <nav class="tabs" id="tabs">
-    <button data-page="home" class="active">Start</button>
-    <button data-page="verwaltung">Hand in Hand Verwaltung</button>
-    <button data-page="kita">Die drei Löwen Kindergarten</button>
-    <button data-page="krankenhaus">Mond-Krankenhaus</button>
-    <button data-page="pflegeheim">Pflegeheim der Gemeinschaft</button>
-    <button data-page="ambulant">Ambulanter Pflegedienst zum Stern</button>
-    <button data-page="ergo">Ergotherapeuten „Unart“</button>
-    <button data-page="apotheke">Sonnen-Apotheke</button>
-  </nav>
+  <!-- Hero (Titel + Untertitel je Seite) -->
+  <section id="hero" class="hero">
+    <!-- gefüllt durch JS -->
+  </section>
 
   <main id="app"></main>
 
   <footer class="app-footer">
-    <small>Speicherung: <strong>nur lokal (localStorage)</strong> • Kein Server • © 2025</small>
+    <small>Copyright Abdul Rahman Itani 2025 • Speicherung: <strong>nur lokal (localStorage)</strong> • Kein Server</small>
   </footer>
 </body>
 </html>
+
