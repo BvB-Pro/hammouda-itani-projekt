@@ -1,12 +1,9 @@
-/* Hammouda-Itani-Stiftung – schöne, volle Trainingsversion
-   - Bunter, lebendiger Hintergrund
-   - Hero pro Seite (Titel + Slogan)
-   - Großer „Unternehmen“-Dropdown (alle Einrichtungen)
-   - „Sonstiges“-Dropdown (Daten, Export, Dark Mode, Löschen)
-   - Druckansicht-Button immer oben rechts
-   - Je Seite kurzer Infotext
-   - Neue Einrichtung: Kinderarzt-Praxis
-   - Lokale Speicherung (localStorage)
+/* Verbessert:
+   - Bunter Hintergrund (CSS)
+   - Funktionierender Dropdown per Klick (öffnen/schließen, ESC, Outside-Click)
+   - Hero pro Seite (Titel+Slogan)
+   - Druckbutton immer rechts oben
+   - Unternehmen inkl. Kinderarzt-Praxis
 */
 
 const qs = (s) => document.querySelector(s);
@@ -25,14 +22,14 @@ const PAGES = [
   { id:"kinderarzt",    title:"Kinderarzt-Praxis", slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten." },
 ];
 
-const state = { page: "home", storeKey: "stiftung-store-v3" };
+const state = { page: "home", storeKey: "stiftung-store-v4" };
 let STORE = initStore();
 
 function initStore() {
   const raw = localStorage.getItem(state.storeKey);
   if (raw) return JSON.parse(raw);
   const seed = {
-    meta: { version: 3, created: new Date().toISOString() },
+    meta: { version: 4, created: new Date().toISOString() },
     kita: { kinder: [], beobachtungen: [], anwesenheit: [], eltern: [] },
     pflege: { bewohner: [], berichte: [], vitals: [], medis: [], sturz: [] },
     krankenhaus: { patienten: [], vitals: [] },
@@ -63,13 +60,18 @@ function exportJSON(obj, name="export.json"){
   setTimeout(()=>URL.revokeObjectURL(url), 300);
 }
 
+/* ---------- UI Boot ---------- */
 document.addEventListener("DOMContentLoaded", () => {
   buildCompanyMenu();
-  render(); // initial
+  setupDropdown("companyDropdown");
+  setupDropdown("moreDropdown");
+  setupDarkFromPref();
+  qs("#printBtn").addEventListener("click", () => window.print());
+  render();
 
   // Sonstiges-Aktionen
   document.body.addEventListener("click", (e)=>{
-    if (e.target.matches(".dropdown .menu button")) {
+    if (e.target.matches("#moreMenu button")) {
       const act = e.target.dataset.action;
       if (act==="seed") seedDemo();
       if (act==="export-json") exportJSON(STORE, "stiftung-export.json");
@@ -81,27 +83,46 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   });
-
-  // Druckansicht
-  qs("#printBtn").addEventListener("click", () => window.print());
 });
 
+/* ---------- Dropdown-Logik (Klick, Outside-Click, ESC, Fokus) ---------- */
+function setupDropdown(id){
+  const dd = qs("#"+id);
+  const btn = dd.querySelector("button");
+  const menu = dd.querySelector(".menu");
+  const open = () => { dd.classList.add("open"); btn.setAttribute("aria-expanded","true"); menu.focus(); };
+  const close = () => { dd.classList.remove("open"); btn.setAttribute("aria-expanded","false"); };
+
+  btn.addEventListener("click", (e)=>{ e.stopPropagation(); dd.classList.toggle("open"); 
+    const exp = dd.classList.contains("open"); btn.setAttribute("aria-expanded", exp ? "true" : "false");
+    if (exp) menu.focus();
+  });
+
+  document.addEventListener("click", (e)=>{ if (!dd.contains(e.target)) close(); });
+  document.addEventListener("keydown", (e)=>{ if (e.key === "Escape") close(); });
+}
+function setupDarkFromPref(){
+  const m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (m) document.documentElement.classList.add("dark");
+}
+
+/* ---------- Unternehmen-Menü befüllen ---------- */
 function buildCompanyMenu(){
-  const menu = document.querySelector(".dropdown.mega .menu.grid");
+  const menu = qs("#companyMenu");
   menu.innerHTML = "";
   PAGES.filter(p=>p.id!=="home").forEach(p=>{
-    const a = ce("a", { href:"#", className:"kachel" });
+    const a = ce("a", { href:"#", className:"kachel", role:"menuitem" });
     a.innerHTML = `<div class="icon">★</div><div><strong>${p.title}</strong><div class="muted">${p.slogan}</div></div>`;
-    a.onclick = (ev)=>{ ev.preventDefault(); switchTo(p.id); };
+    a.addEventListener("click", (ev)=>{ ev.preventDefault(); switchTo(p.id); qs("#companyDropdown").classList.remove("open"); });
     menu.appendChild(a);
   });
 }
 
+/* ---------- Routing ---------- */
 function switchTo(id){
   state.page = id;
   render();
 }
-
 function render(){
   const page = PAGES.find(p=>p.id===state.page) || PAGES[0];
 
@@ -114,8 +135,8 @@ function render(){
     </div>
   `;
 
-  // Main content
   const app = qs("#app"); app.innerHTML = "";
+
   if (page.id==="home") return renderHome(app);
   if (page.id==="verwaltung") return renderVerwaltung(app);
   if (page.id==="kita") return renderKita(app);
@@ -129,18 +150,10 @@ function render(){
 
 /* ---------- Seiten ---------- */
 function renderHome(app){
-  // Infotext
-  const info = ce("div",{className:"card"});
-  info.innerHTML = `
-    <h2>Liebe Mitarbeitenden,</h2>
-    <p class="muted">
-      es ist uns eine große Freude, euch als Team in unserer Unternehmensgruppe willkommen zu heißen.
-      Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und vollständig lokal gespeichert.
-      Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten.
-    </p>`;
-  app.appendChild(info);
+  app.appendChild(cardInfo("Liebe Mitarbeitenden,",
+    "es ist uns eine große Freude, euch als Team in unserer Unternehmensgruppe willkommen zu heißen. Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und vollständig lokal gespeichert. Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten.")
+  );
 
-  // Kacheln zu allen Unternehmen
   const grid = ce("div",{className:"grid"});
   PAGES.filter(p=>p.id!=="home").forEach(p=>{
     const a = ce("a",{href:"#", className:"kachel"});
@@ -154,7 +167,6 @@ function renderHome(app){
 function renderVerwaltung(app){
   app.appendChild(cardInfo("Hinweis",
     "Zentrale Verwaltung: Hier können später Richtlinien, Checklisten und Vorlagen liegen (Training/Platzhalter)."));
-
   const tools = ce("div",{className:"card"});
   tools.innerHTML = `
     <h3>Werkzeuge</h3>
@@ -164,12 +176,11 @@ function renderVerwaltung(app){
   app.appendChild(tools);
 }
 
-/* ---------- Kita ---------- */
+/* ---------- KITA ---------- */
 function renderKita(app){
   app.appendChild(cardInfo("Info",
     "Die drei Löwen Kindergarten: Bitte nur Übungsdaten verwenden. Alle Einträge werden lokal gespeichert."));
 
-  // Kinder
   app.appendChild(listFormCard({
     title:"Kinder",
     list: STORE.kita.kinder,
@@ -183,7 +194,6 @@ function renderKita(app){
     onSubmit: data => { STORE.kita.kinder.push(data); save(); }
   }));
 
-  // Beobachtungen
   app.appendChild(listFormCard({
     title:"Beobachtungen",
     list: STORE.kita.beobachtungen,
@@ -201,7 +211,6 @@ function renderKita(app){
     onSubmit: data => { STORE.kita.beobachtungen.push(data); save(); }
   }));
 
-  // Anwesenheit
   app.appendChild(listFormCard({
     title:"Anwesenheit",
     list: STORE.kita.anwesenheit,
@@ -219,7 +228,6 @@ function renderKita(app){
     onSubmit: data => { STORE.kita.anwesenheit.push(data); save(); }
   }));
 
-  // Elternkommunikation
   app.appendChild(listFormCard({
     title:"Elternkommunikation",
     list: STORE.kita.eltern,
@@ -238,12 +246,11 @@ function renderKita(app){
   }));
 }
 
-/* ---------- Pflegeheim ---------- */
+/* ---------- Pflege ---------- */
 function renderPflege(app){
   app.appendChild(cardInfo("Info",
     "Pflegeheim der Gemeinschaft: Training für Bewohner, Berichte, Vitalwerte, Medigabe (nur Übung!) und Sturzmeldungen."));
 
-  // Bewohner
   app.appendChild(listFormCard({
     title:"Bewohner",
     list: STORE.pflege.bewohner,
@@ -258,7 +265,6 @@ function renderPflege(app){
     onSubmit: data => { if(data.pflegegrad) data.pflegegrad=Number(data.pflegegrad); STORE.pflege.bewohner.push(data); save(); }
   }));
 
-  // Berichte
   app.appendChild(listFormCard({
     title:"Pflegeberichte",
     list: STORE.pflege.berichte,
@@ -276,7 +282,6 @@ function renderPflege(app){
     onSubmit: data => { STORE.pflege.berichte.push(data); save(); }
   }));
 
-  // Vitalwerte
   app.appendChild(listFormCard({
     title:"Vitalwerte",
     list: STORE.pflege.vitals,
@@ -293,13 +298,9 @@ function renderPflege(app){
         <button class="btn" type="button" onclick="exportCSV(STORE.pflege.vitals,'pflege-vitalwerte.csv')">CSV exportieren</button>
       </div>
     `,
-    onSubmit: data => {
-      ["puls","temp","spo2"].forEach(k=>data[k]=data[k]?Number(data[k]):undefined);
-      STORE.pflege.vitals.push(data); save();
-    }
+    onSubmit: data => { ["puls","temp","spo2"].forEach(k=>data[k]=data[k]?Number(data[k]):undefined); STORE.pflege.vitals.push(data); save(); }
   }));
 
-  // Medigabe (Training)
   app.appendChild(listFormCard({
     title:"Medigabe – Trainingszwecke",
     list: STORE.pflege.medis,
@@ -319,7 +320,6 @@ function renderPflege(app){
     onSubmit: data => { STORE.pflege.medis.push(data); save(); }
   }));
 
-  // Sturzmeldungen
   app.appendChild(listFormCard({
     title:"Sturzmeldungen",
     list: STORE.pflege.sturz,
@@ -345,7 +345,6 @@ function renderKrankenhaus(app){
   app.appendChild(cardInfo("Info",
     "Mond-Krankenhaus: Einfache Aufnahme & Vitalwerte als Trainingsbeispiel."));
 
-  // Aufnahme
   app.appendChild(listFormCard({
     title:"Aufnahme",
     list: STORE.krankenhaus.patienten,
@@ -359,7 +358,6 @@ function renderKrankenhaus(app){
     onSubmit: data => { STORE.krankenhaus.patienten.push(data); save(); }
   }));
 
-  // Vitalwerte
   app.appendChild(listFormCard({
     title:"Vitalwerte",
     list: STORE.krankenhaus.vitals,
@@ -450,12 +448,11 @@ function renderApotheke(app){
   }));
 }
 
-/* ---------- Kinderarzt-Praxis ---------- */
+/* ---------- Kinderarzt ---------- */
 function renderKinderarzt(app){
   app.appendChild(cardInfo("Info",
     "Kinderarzt-Praxis: Aufnahme & Besuchsdokumentation – kindgerecht, klar und kurz (Training)."));
 
-  // Patienten (Kinder)
   app.appendChild(listFormCard({
     title:"Patienten",
     list: STORE.kinderarzt.patienten,
@@ -469,7 +466,6 @@ function renderKinderarzt(app){
     onSubmit: data => { STORE.kinderarzt.patienten.push(data); save(); }
   }));
 
-  // Besuche
   app.appendChild(listFormCard({
     title:"Besuche",
     list: STORE.kinderarzt.besuche,
@@ -521,7 +517,6 @@ function listFormCard({title, list, renderLine, formHTML, onSubmit}){
 
 /* ---------- Demo-Daten ---------- */
 function seedDemo(){
-  // Kita
   STORE.kita.kinder = [
     { vorname:"Mila", nachname:"Klein", geburtstag:"2020-04-18", gruppe:"Sonnen" },
     { vorname:"Yunus", nachname:"Aziz", geburtstag:"2019-11-02", gruppe:"Löwen" },
@@ -532,7 +527,6 @@ function seedDemo(){
   STORE.kita.anwesenheit = [{ kindId:"Mila Klein", datum: today(), status:"anwesend", abholer:"Mutter" }];
   STORE.kita.eltern = [{ kindId:"Mila Klein", datum: today(), kanal:"Tür-und-Angel", inhalt:"Schlafenszeit besprochen." }];
 
-  // Pflege
   STORE.pflege.bewohner = [
     { vorname:"Karl", nachname:"Schmidt", geburt:"1941-07-12", zimmer:"2.14", pflegegrad:3 },
     { vorname:"Hanne", nachname:"Vogel", geburt:"1938-03-03", zimmer:"1.07", pflegegrad:2 },
@@ -550,7 +544,6 @@ function seedDemo(){
     { bewohnerId:"Hanne Vogel", datum: today(), ort:"Bad", folgen:"Hämatom li. Unterarm", arzt:"nein", meldung:"Team & Angehörige informiert" }
   ];
 
-  // Krankenhaus
   STORE.krankenhaus.patienten = [
     { name:"Franz Meier", geburt:"1958-02-21", fach:"Innere", datum: today() }
   ];
@@ -558,22 +551,18 @@ function seedDemo(){
     { pat:"Franz Meier", datum: today(), puls:82, rr:"128/76", temp:36.8, spo2:98 }
   ];
 
-  // Ambulant
   STORE.ambulant.touren = [
     { klient:"Emine Kaya", datum: today(), leistung:"LK 3 – große Morgenpflege", von:"08:00", bis:"08:45" }
   ];
 
-  // Ergo
   STORE.ergo.einheiten = [
     { klient:"Nora Lehmann", datum: today(), ziel:"Feinmotorik", inhalt:"Perlen sortieren, Knetübung, Pinzettengriff." }
   ];
 
-  // Apotheke
   STORE.apotheke.abgaben = [
     { name:"Paul Weber", datum: today(), praeparat:"Platzhalterpräparat", dosis:"1-0-1 nach dem Essen" }
   ];
 
-  // Kinderarzt
   STORE.kinderarzt.patienten = [
     { vorname:"Lina", nachname:"Yilmaz", geburt:"2021-06-12", kasse:"AOK" }
   ];
@@ -583,4 +572,3 @@ function seedDemo(){
 
   save(); render();
 }
-
