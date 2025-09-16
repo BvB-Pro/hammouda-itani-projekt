@@ -8,8 +8,9 @@
   <script defer src="app.js"></script>
 </head>
 <body>
-  <!-- Lebendiger Hintergrund -->
+  <!-- Lebendiger, farbiger Hintergrund -->
   <div class="bg">
+    <div class="gradient"></div>
     <div class="blob b1"></div>
     <div class="blob b2"></div>
     <div class="blob b3"></div>
@@ -31,31 +32,30 @@
     </div>
 
     <div class="header-actions">
-      <button id="printBtn" class="btn ghost" title="Druckansicht">🖨️ Druckansicht</button>
+      <button id="printBtn" class="btn ghost" title="Druckansicht">🖨️</button>
 
-      <div class="dropdown mega">
-        <button class="btn primary big">Unternehmen ▾</button>
-        <div class="menu grid">
-          <!-- gefüllt durch JS -->
-        </div>
+      <!-- FUNKTIONIERENDER Dropdown (per Klick, nicht Hover) -->
+      <div class="dropdown mega" id="companyDropdown">
+        <button class="btn primary big" aria-haspopup="true" aria-expanded="false" aria-controls="companyMenu">
+          Unternehmen ▾
+        </button>
+        <div class="menu grid" id="companyMenu" role="menu" tabindex="-1" aria-label="Unternehmen"></div>
       </div>
 
-      <div class="dropdown">
-        <button class="btn">Sonstiges ▾</button>
-        <div class="menu">
-          <button data-action="seed">Demo-Daten laden</button>
-          <button data-action="export-json">Export: JSON</button>
-          <button data-action="dark">Dark Mode umschalten</button>
-          <button data-action="reset" class="danger">Alle lokalen Daten löschen</button>
+      <div class="dropdown" id="moreDropdown">
+        <button class="btn" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu">Sonstiges ▾</button>
+        <div class="menu" id="moreMenu" role="menu" tabindex="-1">
+          <button data-action="seed" role="menuitem">Demo-Daten laden</button>
+          <button data-action="export-json" role="menuitem">Export: JSON</button>
+          <button data-action="dark" role="menuitem">Dark Mode umschalten</button>
+          <button data-action="reset" class="danger" role="menuitem">Alle lokalen Daten löschen</button>
         </div>
       </div>
     </div>
   </header>
 
-  <!-- Hero (Titel + Untertitel je Seite) -->
-  <section id="hero" class="hero">
-    <!-- gefüllt durch JS -->
-  </section>
+  <!-- Hero (Titel + Untertitel pro Seite) -->
+  <section id="hero" class="hero"></section>
 
   <main id="app"></main>
 
@@ -63,5 +63,7 @@
     <small>Copyright Abdul Rahman Itani 2025 • Speicherung: <strong>nur lokal (localStorage)</strong> • Kein Server</small>
   </footer>
 </body>
+</html>
+
 </html>
 
