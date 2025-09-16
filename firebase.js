@@ -1,3 +1,4 @@
+// firebase.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
@@ -17,9 +18,12 @@ export const db   = getFirestore(app);
 export const auth = getAuth(app);
 
 // anonym einloggen
-signInAnonymously(auth).catch(console.error);
+signInAnonymously(auth).catch((e)=>console.error("Auth error:", e));
 
 // darauf wartet app.js
 export const authReady = new Promise((resolve) => {
-  onAuthStateChanged(auth, (user) => resolve(user));
+  onAuthStateChanged(auth, (user) => {
+    console.log("Auth OK, uid:", user?.uid);
+    resolve(user);
+  });
 });
