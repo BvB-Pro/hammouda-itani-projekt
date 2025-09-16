@@ -166,8 +166,15 @@ function subscribe(refOrQuery, targetArr){
 }
 
 async function addDocTo(path, data){
-  return addDoc(collection(db, path), { ...data, _ts: serverTimestamp() });
+  try{
+    return await addDoc(collection(db, path), { ...data, _ts: serverTimestamp() });
+  }catch(err){
+    console.error("Firestore add error:", err);
+    alert("Speichern fehlgeschlagen: " + (err.message || err));
+    throw err;
+  }
 }
+
 
 /* ====== Dropdown / Navigation ====== */
 function setupDropdown(wrapperId, buttonId, menuId){
@@ -623,26 +630,52 @@ function select(label,name,options=[]){
   const opts = options.map(o=>`<option value="${o}">${o}</option>`).join("");
   return `<label>${label}<select name="${name}">${opts}</select></label>`;
 }
+
 function listFormCard({title, list, renderLine, formHTML, onSubmit}){
   const wrap = ce("div",{className:"card"});
   wrap.innerHTML = `<h3>${title}</h3>`;
 
+  // Liste rendern
   if (!list?.length){
     const p = ce("p",{className:"muted"}); p.textContent = "Noch keine Einträge."; wrap.appendChild(p);
   } else {
     list.forEach(item => { const d=ce("div"); d.innerHTML = renderLine(item); wrap.appendChild(d); });
   }
 
+  // Formular
   const form = ce("form"); form.innerHTML = formHTML;
-  form.onsubmit = async (e)=>{
+
+  // Falls KEIN Submit-Button im formHTML vorhanden ist → automatisch hinzufügen
+  const hasSubmit = !!form.querySelector('button[type="submit"]');
+  if (!hasSubmit){
+    const bar = ce("div",{className:"toolbar"});
+    const submit = ce("button",{className:"btn primary", type:"submit", textContent:"Speichern"});
+    bar.appendChild(submit);
+    form.appendChild(bar);
+  }
+
+  // Submit-Handling (mit einfachem Ladezustand)
+  form.addEventListener("submit", async (e)=>{
     e.preventDefault();
     const data = Object.fromEntries(new FormData(form));
-    await onSubmit(data); // in Firestore speichern
-    form.reset();
-  };
+    const btn = form.querySelector('button[type="submit"]');
+    const orig = btn?.textContent;
+    if (btn){ btn.disabled = true; btn.textContent = "Speichern…"; }
+    try{
+      await onSubmit(data);
+      form.reset();
+    }catch(err){
+      console.error("Speichern fehlgeschlagen:", err);
+      alert("Speichern fehlgeschlagen: " + (err.message || err));
+    }finally{
+      if (btn){ btn.disabled = false; btn.textContent = orig || "Speichern"; }
+    }
+  });
+
   wrap.appendChild(form);
   return wrap;
 }
+
 
 /* ====== Export (Gesamt) ====== */
 function exportAllJSON(){
