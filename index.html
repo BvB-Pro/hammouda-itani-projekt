@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- dekorativer Farbverlauf-Hintergrund (v4 hell) -->
+  <!-- dekorativer Farbverlauf-Hintergrund (hell) -->
   <div class="bg" aria-hidden="true">
     <div class="gradient"></div>
     <div class="blob b1"></div>
@@ -49,23 +49,19 @@
     </nav>
   </header>
 
-  <!-- Leadership-Bar wird von app.js DYNAMISCH vor den Hero gesetzt -->
-  <!-- (auf Home ausgeblendet, auf Unterseiten sichtbar) -->
+  <!-- Leadership-Bar (nur auf Unterseiten sichtbar, via JS eingefügt) -->
 
-  <!-- Hero (Seitentitel/Slogan) -->
+  <!-- Hero -->
   <section id="hero" class="hero"></section>
 
-  <!-- Hauptinhalte / werden per app.js pro Seite gerendert -->
+  <!-- Hauptinhalt (per JS) -->
   <main id="app" class="hero-visual"></main>
 
   <footer class="app-footer">
     <div class="muted">© <span id="year"></span> Hammouda-Itani Stiftung</div>
   </footer>
 
-  <!-- Firebase + App -->
   <script type="module" src="app.js"></script>
-  <script>
-    document.getElementById('year').textContent = new Date().getFullYear();
-  </script>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
 </body>
 </html>
