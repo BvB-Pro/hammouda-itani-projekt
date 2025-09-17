@@ -277,23 +277,6 @@ function setupDropdown(wrapperId, buttonId, menuId){
   document.addEventListener("keydown", (e)=>{ if (e.key==="Escape") close(); });
 }
 
-function buildCompanyMenu(){
-  const menu = qs("#companyMenu"); if (!menu) return;
-  menu.innerHTML = "";
-  const order = [ PAGES.find(p=>p.id==="home"), ...PAGES.filter(p=>p.id!=="home") ];
-  order.forEach(p=>{
-    const a = ce("a",{href:"#", className:"kachel", role:"menuitem"});
-    a.innerHTML = `<div class="icon">★</div>
-      <div><strong>${p.title}</strong><div class="muted">${p.slogan}</div></div>`;
-    a.addEventListener("click",(ev)=>{
-      ev.preventDefault();
-      switchTo(p.id);
-      qs("#companyDropdown")?.classList.remove("open");
-      qs("#companyBtn")?.setAttribute("aria-expanded","false");
-    });
-    menu.appendChild(a);
-  });
-}
 
 function switchTo(id){
   CURRENT_PAGE = id;
