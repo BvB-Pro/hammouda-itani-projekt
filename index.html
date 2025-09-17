@@ -7,101 +7,202 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- Kopfbereich -->
-  <header class="header">
+  <!-- Optional: dein v4 Deko-Balken -->
+  <div class="paintbar"></div>
+
+  <!-- Header wie in v4 -->
+  <header class="app-header">
     <div class="brand">
-      <h1>Hammouda-Itani Stiftung</h1>
+      <div class="logo">HI</div>
+      <div class="brand-text">
+        <strong>Hammouda-Itani Stiftung</strong>
+        <small>Interne Infoseite</small>
+      </div>
     </div>
-    <p class="subtitle">Interne Infoseite</p>
+
+    <nav class="nav">
+      <!-- Einfache Facility-Auswahl -->
+      <label for="facilitySelect" class="muted" style="font-weight:600;">Bereich:</label>
+      <select id="facilitySelect" class="btn">
+        <option value="krankenhaus">Krankenhaus</option>
+        <option value="kindergarten">Kindergarten</option>
+        <option value="altenheim">Altenheim / Pflegeheim</option>
+        <option value="ambulant">Ambulante Pflege</option>
+        <option value="apotheke">Apotheke</option>
+        <option value="verwaltung">Hand in Hand Verwaltung</option>
+        <option value="kinderarzt">Kinderarzt</option>
+        <option value="ergotherapie">Ergotherapie</option>
+        <option value="stiftung">Stiftung</option>
+      </select>
+    </nav>
   </header>
 
+  <!-- Leadership-Bar: wird von app.js befüllt -->
+  <section id="leadershipPanel" class="panel show">
+    <h3 id="leadershipTitle" class="panel-title">Leitung</h3>
+    <!-- Entweder Liste ODER Tabelle – wir nutzen eine Tabelle (Name, Rolle, Tel, Handy, E-Mail) -->
+    <table id="leadershipTable" class="board-table" aria-label="Leitungskontakte">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Rolle</th>
+          <th>Telefon</th>
+          <th>Handy</th>
+          <th>E-Mail</th>
+        </tr>
+      </thead>
+      <tbody id="leadershipBody">
+        <!-- wird dynamisch gefüllt -->
+      </tbody>
+    </table>
+  </section>
+
   <main class="container">
-    <!-- 1) Leitung überall -->
-    <section id="leadershipBar" class="panel">
-      <h2 class="panel-title" id="leadershipTitle">Leitung Krankenhaus XXXX</h2>
-      <ul id="leadershipNames" class="list">
-        <li>Vorname Nachname – Geschäftsführung</li>
-        <li>Vorname Nachname – Pflegedienstleitung</li>
-      </ul>
+    <!-- Krankenhaus -->
+    <section id="view-krankenhaus" class="panel show" data-view>
+      <h2 class="panel-title">Aktuelles – Krankenhaus</h2>
+      <p class="muted">Inhalte für das Krankenhaus …</p>
     </section>
 
-    <!-- 2) Stiftungsseite: Krabblerstraße-Hinweis -->
-    <section id="foundationNote" class="panel">
-      <h2 class="panel-title">Info – Krabblerstraße</h2>
-      <p>
-        Liebe KollegInnen, am <strong>18.09.2025</strong> treffen wir uns um <strong>10 Uhr</strong> am Standort der
-        Boje in der Elisenstraße. Ab ca. <strong>12:30 Uhr</strong> gibt es ein kleines Mittagessen. Anschließend werden
-        wir uns gemeinsam zu unserem Kooperationspartner, dem <strong>Kindergarten an der Krabblerstr. in Essen-Altenessen</strong>, begeben.
-        Dort werden wir neben dem Oberbürgermeister auch auf den Vorstand der Stiftung und viele spannende Leute treffen.
-        Gemeinsam werden wir bis ca. <strong>18 Uhr</strong> vom Kindergarten lernen, wie wir unsere Unternehmen in Zukunft gestalten können.
-        Wir freuen uns sehr auf euch. <br> <strong>Eure Hammouda-Itani-Stiftung.</strong>
-      </p>
+    <!-- Kindergarten -->
+    <section id="view-kindergarten" class="panel" data-view>
+      <h2 class="panel-title">Aktuelles – Kindergarten</h2>
+      <p class="muted">Inhalte für den Kindergarten …</p>
     </section>
 
-    <!-- 3) Stiftungsseite: Vorsitzende & Gremien -->
-    <section id="foundationBoard" class="panel">
-      <h2 class="panel-title">Stiftung – Vorsitz & Gremien</h2>
-      <table class="board-table">
+    <!-- Altenheim / Pflegeheim -->
+    <section id="view-altenheim" class="panel" data-view>
+      <h2 class="panel-title">Aktuelles – Altenheim / Pflegeheim</h2>
+      <p class="muted">Inhalte für das Alten-/Pflegeheim …</p>
+    </section>
+
+    <!-- Ambulante Pflege -->
+    <section id="view-ambulant" class="panel" data-view>
+      <h2 class="panel-title">Aktuelles – Ambulante Pflege</h2>
+      <p class="muted">Inhalte für die ambulante Pflege …</p>
+    </section>
+
+    <!-- Apotheke -->
+    <section id="view-apotheke" class="panel" data-view>
+      <h2 class="panel-title">Aktuelles – Apotheke</h2>
+      <p class="muted">Inhalte für die Apotheke …</p>
+    </section>
+
+    <!-- Verwaltung (Hand in Hand) -->
+    <section id="view-verwaltung" class="panel" data-view>
+      <h2 class="panel-title">Hand in Hand – Verwaltung</h2>
+      <p class="muted">Unterbereiche: Lager, Personal, Marketing.</p>
+      <!-- Unterbereiche optional als Tabelle -->
+      <table class="board-table" aria-label="Verwaltung Unterbereiche">
         <thead>
           <tr>
-            <th>Funktion</th>
             <th>Name</th>
+            <th>Bereich</th>
             <th>Telefon</th>
             <th>Handy</th>
             <th>E-Mail</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>Präsident</td>
-            <td>Z. Bremkens</td>
-            <td>0201 12 51 74 - 31</td>
-            <td>0175 722 0577</td>
-            <td><a href="mailto:z.bremkens@die-boje.de">z.bremkens@die-boje.de</a></td>
-          </tr>
-          <tr>
-            <td>Vorsitzende</td>
-            <td>B. Terhard-Hammouda</td>
-            <td>-</td>
-            <td>-</td>
-            <td>-</td>
-          </tr>
-          <tr>
-            <td>Vorsitzender</td>
-            <td>A.R. Itani</td>
-            <td>-</td>
-            <td>-</td>
-            <td>-</td>
-          </tr>
-          <tr>
-            <td>Geschäftsführung</td>
-            <td>V. Lauth</td>
-            <td>-</td>
-            <td>-</td>
-            <td>-</td>
-          </tr>
+          <tr><td>Markus</td><td>Lager</td><td>—</td><td>—</td><td><a href="mailto:markus@stiftung.de">markus@stiftung.de</a></td></tr>
+          <tr><td>Ghina</td><td>Personal</td><td>—</td><td>—</td><td><a href="mailto:ghina@stiftung.de">ghina@stiftung.de</a></td></tr>
+          <tr><td>Ali</td><td>Marketing</td><td>—</td><td>—</td><td><a href="mailto:ali@stiftung.de">ali@stiftung.de</a></td></tr>
         </tbody>
       </table>
+    </section>
 
-      <!-- Generelle Stiftungs-E-Mails -->
-      <p class="foundation-email">
-        Zentrale Kontaktadresse der BVB Pro: 
-        <a href="mailto:bvb-pro@die-boje.de">bvb-pro@die-boje.de</a>
-      </p>
-      <p class="foundation-email">
-        Zentrale Kontaktadresse der Stiftung: 
-        <a href="mailto:info@stiftung.de">info@stiftung.de</a>
-      </p>
+    <!-- Kinderarzt -->
+    <section id="view-kinderarzt" class="panel" data-view>
+      <h2 class="panel-title">Aktuelles – Kinderarzt</h2>
+      <p class="muted">Inhalte für den Bereich Kinderarzt …</p>
+    </section>
+
+    <!-- Ergotherapie -->
+    <section id="view-ergotherapie" class="panel" data-view>
+      <h2 class="panel-title">Aktuelles – Ergotherapie</h2>
+      <p class="muted">Inhalte für die Ergotherapie …</p>
+    </section>
+
+    <!-- Stiftung: Krabblerstraße + Vorstand -->
+    <section id="view-stiftung" class="panel" data-view>
+      <h2 class="panel-title">Stiftung – Informationen</h2>
+
+      <article id="foundationNote" class="card">
+        <h3>Info – Krabblerstraße</h3>
+        <p>
+          Liebe KollegInnen, am <strong>18.09.2025</strong> treffen wir uns um <strong>10 Uhr</strong> am Standort der
+          Boje in der Elisenstraße. Ab ca. <strong>12:30 Uhr</strong> gibt es ein kleines Mittagessen. Anschließend werden
+          wir uns gemeinsam zu unserem Kooperationspartner, dem <strong>Kindergarten an der Krabblerstr. in Essen-Altenessen</strong>, begeben.
+          Dort werden wir neben dem Oberbürgermeister auch auf den Vorstand der Stiftung und viele spannende Leute treffen.
+          Gemeinsam werden wir bis ca. <strong>18 Uhr</strong> vom Kindergarten lernen, wie wir unsere Unternehmen in Zukunft gestalten können.
+          Wir freuen uns sehr auf euch. <br> <strong>Eure Hammouda-Itani-Stiftung.</strong>
+        </p>
+      </article>
+
+      <article class="card">
+        <h3>Stiftung – Vorsitz & Gremien</h3>
+        <table class="board-table">
+          <thead>
+            <tr>
+              <th>Funktion</th>
+              <th>Name</th>
+              <th>Telefon</th>
+              <th>Handy</th>
+              <th>E-Mail</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Präsident</td>
+              <td>Z. Bremkens</td>
+              <td>0201 12 51 74 - 31</td>
+              <td>0175 722 0577</td>
+              <td><a href="mailto:z.bremkens@die-boje.de">z.bremkens@die-boje.de</a></td>
+            </tr>
+            <tr>
+              <td>Vorsitzende</td>
+              <td>B. Terhard-Hammouda</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>Vorsitzender</td>
+              <td>A.R. Itani</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>Geschäftsführung</td>
+              <td>V. Lauth</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p class="foundation-email">
+          Zentrale Kontaktadresse der BVB Pro:
+          <a href="mailto:bvb-pro@die-boje.de">bvb-pro@die-boje.de</a>
+        </p>
+        <p class="foundation-email">
+          Zentrale Kontaktadresse der Stiftung:
+          <a href="mailto:info@stiftung.de">info@stiftung.de</a>
+        </p>
+      </article>
     </section>
   </main>
 
-  <footer class="footer">
-    <small>&copy; <span id="year"></span> Hammouda-Itani Stiftung</small>
+  <footer class="app-footer">
+    <button id="printBtn" class="btn ghost" onclick="window.print()" title="Seite drucken">🖨️ Drucken</button>
+    <div class="muted">© <span id="year"></span> Hammouda-Itani Stiftung</div>
   </footer>
 
+  <script type="module" src="app.js"></script>
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
   </script>
 </body>
 </html>
-
