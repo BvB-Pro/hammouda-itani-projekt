@@ -1,7 +1,6 @@
-/* Hammouda-Itani-Stiftung – app.js (sauber für helles v4, Home abgespeckt)
-   - KEIN automatischer Dark-Start: dark nur wenn explizit gespeichert.
-   - Home zeigt nur: Infotext, Stiftungsleitung (nebeneinander), Krabblerstraße-News.
-   - Unterseiten: Leadership-Bar (bereichsspezifisch) + Module (Patienten/Klienten etc.).
+/* Hammouda-Itani-Stiftung – app.js (Home mit E-Mail-Box; Dropdown ohne Scroll)
+   - Home: Infotext → Stiftungsleitung (Cards) → E-Mail-Box → Krabblerstraße-News
+   - Unterseiten: Leadership-Tabelle + Module
 */
 
 import { db, authReady } from "./firebase.js";
@@ -63,7 +62,7 @@ const LEADERSHIP = {
   }
 };
 
-/* ====== Einstellungen, Helfer ====== */
+/* ====== Einstellungen & Helfer ====== */
 const TENANT_ID = "stiftung";
 const qs = (s) => document.querySelector(s);
 const ce = (t, p = {}) => Object.assign(document.createElement(t), p);
@@ -140,7 +139,6 @@ const STORE = {
 
 /* ====== Boot ====== */
 document.addEventListener("DOMContentLoaded", async () => {
-  // Dark nur, wenn explizit gespeichert (kein System-Autodark!)
   const ui = loadUI();
   if (ui.dark === true) document.documentElement.classList.add("dark");
 
@@ -157,14 +155,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (act==="reset") alert("Bei zentraler Speicherung gibt es hier keinen ‚Alles löschen‘-Button.");
   });
 
-  // Leadership-Panel einmalig erzeugen (wird auf Home ausgeblendet)
   ensureLeadershipPanel();
 
   await authReady;
-  await initRealtime();
-
-  try { await addDoc(collection(db, base("_diagnose")), { ok:true, _ts: serverTimestamp() }); }
-  catch(e){ console.warn("Diagnose fehlgeschlagen", e); }
+  await initRealtime().catch(console.warn);
 
   switchTo(CURRENT_PAGE);
 });
@@ -293,7 +287,7 @@ function renderLeadership(pageId){
 }
 const esc = (s="") => String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
-/* ====== UI-Bausteine (Cards/Forms) ====== */
+/* ====== UI-Bausteine ====== */
 function cardInfo(title, text){
   const d = ce("div",{className:"card"});
   const htmlText = (text||"").split("\n\n").map(t=>`<p class="muted">${t}</p>`).join("");
@@ -323,11 +317,11 @@ function render(){
   if (CURRENT_PAGE==="home") renderLeadership(undefined);
   else renderLeadership(CURRENT_PAGE);
 
-  // Hero aktualisieren
+  // Hero
   const hero = qs("#hero");
   hero.innerHTML = `<div class="card"><h1>${page.title}</h1><p>${page.slogan}</p></div>`;
 
-  // Page-Content
+  // Page
   const app = qs("#app");
   app.innerHTML = "";
 
@@ -342,7 +336,7 @@ function render(){
   if (page.id==="kinderarzt") return renderKinderarzt(app);
 }
 
-/* ====== HOME: NUR Info, Stiftungsleitung (nebeneinander), Krabblerstraße ====== */
+/* ====== HOME ====== */
 function renderHome(app){
   // 1) Infotext
   app.appendChild(cardInfo("Liebe Kolleginnen und Kollegen,",
@@ -380,7 +374,17 @@ Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Mensc
   `;
   app.appendChild(grid);
 
-  // 3) Krabblerstraße-News
+  // 3) E-Mail-Box (zwischen Leitung und News)
+  const mailBox = ce("section",{className:"card"});
+  mailBox.innerHTML = `
+    <h3>Kontakt</h3>
+    <p class="muted">Zentrale E-Mail-Adressen:</p>
+    <p><strong>BVB Pro:</strong> <a href="mailto:bvb-pro@die-boje.de">bvb-pro@die-boje.de</a></p>
+    <p><strong>Stiftung:</strong> folgt</p>
+  `;
+  app.appendChild(mailBox);
+
+  // 4) Krabblerstraße-News
   const news = ce("article",{className:"card", id:"foundationNote"});
   news.innerHTML = `
     <h3>News – Krabblerstraße</h3>
@@ -392,14 +396,11 @@ Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Mensc
       Gemeinsam werden wir bis ca. <strong>18 Uhr</strong> vom Kindergarten lernen, wie wir unsere Unternehmen in Zukunft gestalten können.
       Wir freuen uns sehr auf euch. <br> <strong>Eure Hammouda-Itani-Stiftung.</strong>
     </p>
-    <p class="foundation-email" style="margin-top:10px">
-      Zentrale Kontaktadresse BVB Pro: <a href="mailto:bvb-pro@die-boje.de">bvb-pro@die-boje.de</a>
-    </p>
   `;
   app.appendChild(news);
 }
 
-/* ====== Verwaltung (ohne fremde Leitungen) ====== */
+/* ====== Verwaltung ====== */
 function renderVerwaltung(app){
   app.appendChild(cardInfo("Hinweis",
     "Zentrale Verwaltung: Hier können später Richtlinien, Checklisten und Vorlagen liegen (Training/Platzhalter)."));
@@ -409,7 +410,6 @@ function renderVerwaltung(app){
 function renderKita(app){
   app.appendChild(cardInfo("Info",
     "Die drei Löwen Kindergarten: Bitte nur Übungsdaten verwenden. Alle Einträge werden zentral gespeichert."));
-  // Kinder
   app.appendChild(listFormCard({
     title:"Kinder",
     list: STORE.kita.kinder,
@@ -422,7 +422,6 @@ function renderKita(app){
     `,
     onSubmit: data => addDocTo(COL.kita_kinder, data)
   }));
-  // weitere Module (Beobachtungen/Anwesenheit/Eltern)
   app.appendChild(collapsibleCard("Weitere Module …",(body)=>{
     body.appendChild(listFormCard({
       title:"Beobachtungen",
@@ -669,12 +668,11 @@ function renderKinderarzt(app){
   }));
 }
 
-/* ====== Gemeinsame Module (Pflege/KH/Ambulant) ====== */
+/* ====== Gemeinsame Module ====== */
 function buildCommonModules(container, cfg){
   const people = cfg.people || [];
   const who = cfg.whoLabel || "Person";
 
-  // Anordnungen
   container.appendChild(listFormCard({
     title:"Ärztliche Anordnungen",
     list: STOREFromPath(cfg.anordPath),
@@ -683,7 +681,6 @@ function buildCommonModules(container, cfg){
     onSubmit: data => addDocTo(cfg.anordPath, data)
   }));
 
-  // Maßnahmen (abhakbar)
   container.appendChild(listFormCard({
     title:"Maßnahmen (abhakbar)",
     list: STOREFromPath(cfg.massnPath),
@@ -698,7 +695,6 @@ function buildCommonModules(container, cfg){
     catch(err){ alert("Konnte Maßnahme nicht aktualisieren."); console.error(err); }
   });
 
-  // Sturz
   container.appendChild(listFormCard({
     title:"Sturzbericht",
     list: STOREFromPath(cfg.sturzPath),
@@ -707,7 +703,6 @@ function buildCommonModules(container, cfg){
     onSubmit: data => addDocTo(cfg.sturzPath, data)
   }));
 
-  // Wunde
   container.appendChild(listFormCard({
     title:"Wundbericht",
     list: STOREFromPath(cfg.wundePath),
@@ -716,7 +711,6 @@ function buildCommonModules(container, cfg){
     onSubmit: data => addDocTo(cfg.wundePath, data)
   }));
 
-  // Vitalwerte
   container.appendChild(listFormCard({
     title:"Vitalwerte",
     list: STOREFromPath(cfg.vitPath),
@@ -730,7 +724,6 @@ function buildCommonModules(container, cfg){
     })
   }));
 
-  // Medikamente
   container.appendChild(listFormCard({
     title:"Medikationen",
     list: STOREFromPath(cfg.mediPath),
@@ -739,7 +732,6 @@ function buildCommonModules(container, cfg){
     onSubmit: data => addDocTo(cfg.mediPath, data)
   }));
 
-  // Flüssigkeit
   container.appendChild(listFormCard({
     title:"Flüssigkeitsbilanz",
     list: STOREFromPath(cfg.flPath),
@@ -748,7 +740,6 @@ function buildCommonModules(container, cfg){
     onSubmit: data => addDocTo(cfg.flPath, { ...data, ein: data.ein?Number(data.ein):0, aus: data.aus?Number(data.aus):0 })
   }));
 
-  // Lagerung
   container.appendChild(listFormCard({
     title:"Lagerung / Mobilisation",
     list: STOREFromPath(cfg.lagPath),
@@ -757,7 +748,6 @@ function buildCommonModules(container, cfg){
     onSubmit: data => addDocTo(cfg.lagPath, data)
   }));
 
-  // Schmerz
   container.appendChild(listFormCard({
     title:"Schmerzbeobachtung",
     list: STOREFromPath(cfg.schPath),
@@ -816,7 +806,7 @@ function exportAllJSON(){
   const strip = (arr)=> arr.map(({id,_ts, ...rest})=>rest);
   const out = {
     kita:{kinder:strip(STORE.kita.kinder),beobachtungen:strip(STORE.kita.beobachtungen),anwesenheit:strip(STORE.kita.anwesenheit),eltern:strip(STORE.kita.eltern)},
-    pflege:{bewohner:strip(STORE.pflege.bewohner),anordnungen:strip(STORE.pflege.anordnungen),massnahmen:strip(STORE.pflege.massnahmen),sturz:strip(STORE.pflege.sturz),wunden:strip(STORE.pflege_wunden),vitals:strip(STORE.pflege_vitals),medis:strip(STORE.pflege_medis),fluess:strip(STORE.pflege_fluess),lagerung:strip(STORE.pflege_lagerung),schmerz:strip(STORE.pflege_schmerz)},
+    pflege:{bewohner:strip(STORE.pflege.bewohner),anordnungen:strip(STORE.pflege.anordnungen),massnahmen:strip(STORE.pflege.massnahmen),sturz:strip(STORE.pflege_sturz),wunden:strip(STORE.pflege_wunden),vitals:strip(STORE.pflege_vitals),medis:strip(STORE.pflege_medis),fluess:strip(STORE.pflege_fluess),lagerung:strip(STORE.pflege_lagerung),schmerz:strip(STORE.pflege_schmerz)},
     krankenhaus:{patienten:strip(STORE.krankenhaus.patienten),anordnungen:strip(STORE.krankenhaus.anordnungen),massnahmen:strip(STORE.krankenhaus.massnahmen),sturz:strip(STORE.krankenhaus.sturz),wunden:strip(STORE.krankenhaus.wunden),vitals:strip(STORE.krankenhaus.vitals),medis:strip(STORE.krankenhaus.medis),fluess:strip(STORE.krankenhaus.fluess),lagerung:strip(STORE.krankenhaus.lagerung),schmerz:strip(STORE.krankenhaus.schmerz)},
     ambulant:{klienten:strip(STORE.ambulant.klienten),anordnungen:strip(STORE.ambulant.anordnungen),massnahmen:strip(STORE.ambulant.massnahmen),sturz:strip(STORE.ambulant.sturz),wunden:strip(STORE.ambulant.wunden),vitals:strip(STORE.ambulant.vitals),medis:strip(STORE.ambulant.medis),fluess:strip(STORE.ambulant.fluess),lagerung:strip(STORE.ambulant.lagerung),schmerz:strip(STORE.ambulant.schmerz)},
     ergo:{klienten:strip(STORE.ergo.klienten),einheiten:strip(STORE.ergo.einheiten)},
