@@ -32,7 +32,7 @@ const PAGES = [
   { id:"ambulant",      title:"Ambulanter Pflegedienst zum Stern", slogan:"Hilfe, die zu Ihnen kommt." },
   { id:"ergo",          title:"Ergotherapeuten „Unart“",       slogan:"Ungewohnt gut – Therapie neu gedacht." },
   { id:"apotheke",      title:"Sonnen Apotheke",               slogan:"Die Apotheke mit dem Strahlen." },
-  { id:"kinderarzt",    title:"Kinderarzt-Praxis",             slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten." },
+  { id:"kinderarzt",    title:"Kinderarzt-Praxis Lieblings-Kinder",             slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten." },
 ];
 
 /* ====== UI-Status (persistenter Zustand) ====== */
@@ -565,7 +565,7 @@ function renderApotheke(app){
 /* ====== Kinderarzt ====== */
 function renderKinderarzt(app){
   app.appendChild(cardInfo("Info",
-    "Kinderarzt-Praxis: Aufnahme & Besuchsdokumentation – kindgerecht, klar und kurz (Training)."));
+    "Kinderarzt-Praxis Lieblings-Kinder: Aufnahme & Besuchsdokumentation – kindgerecht, klar und kurz (Training)."));
 
   // Patienten inkl. Versichertennummer
   app.appendChild(listFormCard({
