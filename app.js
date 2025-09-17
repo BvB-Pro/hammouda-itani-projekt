@@ -1,7 +1,7 @@
-/* Hammouda-Itani-Stiftung – app.js (Firebase-Realtime, v1.0)
+/* Hammouda-Itani-Stiftung – app.js (Firebase-Realtime, v1.1)
    - Zentrale Speicherung: Firestore (Echtzeit)
    - Anonyme Auth (kommt aus firebase.js)
-   - Startseite: nur Infotext
+   - Startseite: nur Infotext (Absätze mit \n\n)
    - Dropdown: Stiftung zuerst
    - CSV/JSON-Export
    - Kinderarzt: Versichertennummer + Terminliste
@@ -175,7 +175,6 @@ async function addDocTo(path, data){
   }
 }
 
-
 /* ====== Dropdown / Navigation ====== */
 function setupDropdown(wrapperId, buttonId, menuId){
   const wrap = qs("#"+wrapperId);
@@ -257,7 +256,6 @@ Hier findet ihr in Zukunft wertvolle News, aktuelle Nachrichten, kurze Infos und
 Stiftungs-Präsident: Z. Bremkens; Stiftungs-Vorsitzenden: B. Hammouda und A.R. Itani; Geschäftsführerin der Stiftung V. Lauth`
   ));
 }
-
 
 function renderVerwaltung(app){
   app.appendChild(cardInfo("Hinweis",
@@ -628,13 +626,28 @@ function cardInfo(title, text){
   const d = ce("div",{className:"card"});
   // \n\n → neuer Absatz
   const htmlText = text
-    .split("\n\n")                     // Text in Absätze trennen
-    .map(t => `<p class="muted">${t}</p>`) // jeden Absatz in <p> packen
+    .split("\n\n")
+    .map(t => `<p class="muted">${t}</p>`)
     .join("");
   d.innerHTML = `<h3>${title}</h3>${htmlText}`;
   return d;
 }
 
+// ▼ UI-Helper (für Formulare & Badges)
+function badge(txt){ 
+  return `<span class="badge">${txt}</span>`; 
+}
+function input(label,name,required=false,type="text",value="",extraAttrs={}){
+  const attrs = Object.entries(extraAttrs).map(([k,v])=>`${k}="${v}"`).join(" ");
+  return `<label>${label}<input name="${name}" type="${type}" value="${value||""}" ${required?"required":""} ${attrs}></label>`;
+}
+function textarea(label,name,value=""){ 
+  return `<label>${label}<textarea name="${name}">${value||""}</textarea></label>`; 
+}
+function select(label,name,options=[]){
+  const opts = options.map(o=>`<option value="${o}">${o}</option>`).join("");
+  return `<label>${label}<select name="${name}">${opts}</select></label>`;
+}
 
 function listFormCard({title, list, renderLine, formHTML, onSubmit}){
   const wrap = ce("div",{className:"card"});
@@ -681,7 +694,6 @@ function listFormCard({title, list, renderLine, formHTML, onSubmit}){
   return wrap;
 }
 
-
 /* ====== Export (Gesamt) ====== */
 function exportAllJSON(){
   // id/_ts entfernen für sauberes Trainings-JSON
@@ -724,7 +736,7 @@ function exportAllJSON(){
   setTimeout(()=>URL.revokeObjectURL(url), 300);
 }
 
-/* ====== Demo-Daten in Firestore schreiben ====== */
+/* ====== Demo-Daten in Firestore schreiben (optional aus dem Menü „Sonstiges“) ====== */
 async function seedDemo(){
   // Kita
   await addDocTo(COL.kita_kinder, { vorname:"Mila", nachname:"Klein", geburtstag:"2020-04-18", gruppe:"Sonnen" });
@@ -760,7 +772,7 @@ async function seedDemo(){
   await addDocTo(COL.kid_termine, { patient:"Lina Yilmaz", datum: today(), zeit:"10:30", grund:"Impfung", notiz:"Aufklärung zu Nebenwirkungen." });
 }
 
-
+/* ====== Optional: kleiner Diagnose-Test – kann später entfernt werden ====== */
 authReady.then(async ()=>{
   try {
     const ref = await addDoc(
