@@ -1,8 +1,7 @@
-/* Hammouda-Itani-Stiftung – app.js (v5.1)
-   - Belässt deine Realtime-/Seitenlogik komplett.
-   - Fügt eine dynamische Leadership-Bar hinzu (nur auf der gewählten Seite).
-   - Krankenhaus: Samira | Kindergarten: Amadu | Altenheim: Evan | Ambulant: Josy
-     Apotheke: Shams | Verwaltung: Markus/Ghina/Ali | Kinderarzt: Jessica | Ergo: Artika
+/* Hammouda-Itani-Stiftung – app.js (sauber für helles v4, Home abgespeckt)
+   - KEIN automatischer Dark-Start: dark nur wenn explizit gespeichert.
+   - Home zeigt nur: Infotext, Stiftungsleitung (nebeneinander), Krabblerstraße-News.
+   - Unterseiten: Leadership-Bar (bereichsspezifisch) + Module (Patienten/Klienten etc.).
 */
 
 import { db, authReady } from "./firebase.js";
@@ -11,15 +10,7 @@ import {
   query, orderBy, updateDoc, doc
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-/* ====== Einstellungen ====== */
-const TENANT_ID = "stiftung";
-
-/* ====== Helfer ====== */
-const qs = (s) => document.querySelector(s);
-const ce = (t, p = {}) => Object.assign(document.createElement(t), p);
-const today = () => new Date().toISOString().slice(0,10);
-
-/* ====== Seiten (unverändert) ====== */
+/* ====== Seiten ====== */
 const PAGES = [
   { id:"home",        title:"Hammouda-Itani Stiftung",            slogan:"Die Stiftung von uns für uns." },
   { id:"verwaltung",  title:"Hand in Hand Verwaltung",            slogan:"Zentrale Steuerung für starke Teams." },
@@ -32,7 +23,7 @@ const PAGES = [
   { id:"apotheke",    title:"Sonnen Apotheke",                     slogan:"Die Apotheke mit dem Strahlen." },
 ];
 
-/* ====== Leadership-Daten (neu) ====== */
+/* ====== Leadership (nur Unterseiten) ====== */
 const LEADERSHIP = {
   krankenhaus: {
     title: "Leitung Krankenhaus",
@@ -69,11 +60,123 @@ const LEADERSHIP = {
   ergo: {
     title: "Leitung Ergotherapie",
     rows: [{ name:"Artika", role:"Leitung Ergotherapie", phone:"—", mobile:"—", email:"artika@stiftung.de" }]
-  },
-  // home (Stiftung): keine Leitungstabelle oben – bleibt leer/ausgeblendet
+  }
 };
 
-/* ====== Dropdown / Navigation (wie gehabt) ====== */
+/* ====== Einstellungen, Helfer ====== */
+const TENANT_ID = "stiftung";
+const qs = (s) => document.querySelector(s);
+const ce = (t, p = {}) => Object.assign(document.createElement(t), p);
+const today = () => new Date().toISOString().slice(0,10);
+
+const UI_KEY = "stiftung-ui-v2";
+function loadUI(){ try{return JSON.parse(localStorage.getItem(UI_KEY))||{lastPage:"home",dark:false}}catch{return{lastPage:"home",dark:false}}}
+function saveUI(patch){ localStorage.setItem(UI_KEY, JSON.stringify({ ...loadUI(), ...patch })); }
+let CURRENT_PAGE = loadUI().lastPage || "home";
+
+/* ====== Firestore Pfade ====== */
+const base = (name) => `tenants/${TENANT_ID}/${name}`;
+const COL = {
+  // Kita
+  kita_kinder: base("kita_kinder"),
+  kita_beobachtungen: base("kita_beobachtungen"),
+  kita_anwesenheit: base("kita_anwesenheit"),
+  kita_eltern: base("kita_eltern"),
+  // Pflegeheim
+  pflege_bewohner: base("pflege_bewohner"),
+  pflege_anordnungen: base("pflege_anordnungen"),
+  pflege_massnahmen: base("pflege_massnahmen"),
+  pflege_sturz: base("pflege_sturz"),
+  pflege_wunden: base("pflege_wunden"),
+  pflege_vitals: base("pflege_vitals"),
+  pflege_medis: base("pflege_medis"),
+  pflege_fluess: base("pflege_fluess"),
+  pflege_lagerung: base("pflege_lagerung"),
+  pflege_schmerz: base("pflege_schmerz"),
+  // Krankenhaus
+  kh_patienten: base("kh_patienten"),
+  kh_anordnungen: base("kh_anordnungen"),
+  kh_massnahmen: base("kh_massnahmen"),
+  kh_sturz: base("kh_sturz"),
+  kh_wunden: base("kh_wunden"),
+  kh_vitals: base("kh_vitals"),
+  kh_medis: base("kh_medis"),
+  kh_fluess: base("kh_fluess"),
+  kh_lagerung: base("kh_lagerung"),
+  kh_schmerz: base("kh_schmerz"),
+  // Ambulant
+  amb_klienten: base("amb_klienten"),
+  amb_anordnungen: base("amb_anordnungen"),
+  amb_massnahmen: base("amb_massnahmen"),
+  amb_sturz: base("amb_sturz"),
+  amb_wunden: base("amb_wunden"),
+  amb_vitals: base("amb_vitals"),
+  amb_medis: base("amb_medis"),
+  amb_fluess: base("amb_fluess"),
+  amb_lagerung: base("amb_lagerung"),
+  amb_schmerz: base("amb_schmerz"),
+  // Ergo
+  ergo_klienten: base("ergo_klienten"),
+  ergo_einheiten: base("ergo_einheiten"),
+  // Apotheke
+  apo_kunden: base("apo_kunden"),
+  apo_abgaben: base("apo_abgaben"),
+  // Kinderarzt
+  kid_patienten: base("kid_patienten"),
+  kid_besuche: base("kid_besuche"),
+  kid_termine: base("kid_termine"),
+};
+
+/* ====== Store ====== */
+const STORE = {
+  kita:{kinder:[],beobachtungen:[],anwesenheit:[],eltern:[]},
+  pflege:{bewohner:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[]},
+  krankenhaus:{patienten:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[]},
+  ambulant:{klienten:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[]},
+  ergo:{klienten:[],einheiten:[]},
+  apotheke:{kunden:[],abgaben:[]},
+  kinderarzt:{patienten:[],besuche:[],termine:[]},
+};
+
+/* ====== Boot ====== */
+document.addEventListener("DOMContentLoaded", async () => {
+  // Dark nur, wenn explizit gespeichert (kein System-Autodark!)
+  const ui = loadUI();
+  if (ui.dark === true) document.documentElement.classList.add("dark");
+
+  setupDropdown("companyDropdown","companyBtn","companyMenu");
+  setupDropdown("moreDropdown","moreBtn","moreMenu");
+  buildCompanyMenu();
+
+  qs("#printBtn")?.addEventListener("click", () => window.print());
+  document.body.addEventListener("click", (e)=>{
+    const btn = e.target.closest("#moreMenu button"); if (!btn) return;
+    const act = btn.dataset.action;
+    if (act==="export-json") exportAllJSON();
+    if (act==="dark"){ document.documentElement.classList.toggle("dark"); saveUI({dark:document.documentElement.classList.contains("dark")}); }
+    if (act==="reset") alert("Bei zentraler Speicherung gibt es hier keinen ‚Alles löschen‘-Button.");
+  });
+
+  // Leadership-Panel einmalig erzeugen (wird auf Home ausgeblendet)
+  ensureLeadershipPanel();
+
+  await authReady;
+  await initRealtime();
+
+  try { await addDoc(collection(db, base("_diagnose")), { ok:true, _ts: serverTimestamp() }); }
+  catch(e){ console.warn("Diagnose fehlgeschlagen", e); }
+
+  switchTo(CURRENT_PAGE);
+});
+
+/* ====== Dropdown / Navigation ====== */
+function setupDropdown(wrapperId, buttonId, menuId){
+  const wrap = qs("#"+wrapperId), btn=qs("#"+buttonId), menu=qs("#"+menuId);
+  const close=()=>{wrap?.classList.remove("open");btn?.setAttribute("aria-expanded","false")};
+  btn?.addEventListener("click",(e)=>{ e.stopPropagation(); wrap.classList.toggle("open"); btn.setAttribute("aria-expanded", wrap.classList.contains("open")?"true":"false"); if (wrap.classList.contains("open")) menu?.focus(); });
+  document.addEventListener("click",(e)=>{ if (!wrap?.contains(e.target)) close(); });
+  document.addEventListener("keydown",(e)=>{ if (e.key==="Escape") close(); });
+}
 function buildCompanyMenu(){
   const menu = qs("#companyMenu"); if (!menu) return;
   menu.innerHTML = "";
@@ -87,68 +190,7 @@ function buildCompanyMenu(){
   });
 }
 
-/* ====== UI-State ====== */
-const UI_KEY = "stiftung-ui-v2";
-function loadUI(){ try{return JSON.parse(localStorage.getItem(UI_KEY))||{lastPage:"home",dark:false}}catch{return{lastPage:"home",dark:false}}}
-function saveUI(patch){ localStorage.setItem(UI_KEY, JSON.stringify({ ...loadUI(), ...patch })); }
-let CURRENT_PAGE = loadUI().lastPage || "home";
-
-/* ====== In-Memory Store (wie gehabt) ====== */
-const STORE = {
-  kita:{kinder:[],beobachtungen:[],anwesenheit:[],eltern:[]},
-  pflege:{bewohner:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[]},
-  krankenhaus:{patienten:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[]},
-  ambulant:{klienten:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[]},
-  ergo:{klienten:[],einheiten:[]},
-  apotheke:{kunden:[],abgaben:[]},
-  kinderarzt:{patienten:[],besuche:[],termine:[]}
-};
-
-/* ====== Firestore-Pfade (wie gehabt) ====== */
-const base = (name) => `tenants/${TENANT_ID}/${name}`;
-const COL = {
-  kita_kinder: base("kita_kinder"),kita_beobachtungen: base("kita_beobachtungen"),kita_anwesenheit: base("kita_anwesenheit"),kita_eltern: base("kita_eltern"),
-  pflege_bewohner: base("pflege_bewohner"),pflege_anordnungen: base("pflege_anordnungen"),pflege_massnahmen: base("pflege_massnahmen"),pflege_sturz: base("pflege_sturz"),pflege_wunden: base("pflege_wunden"),pflege_vitals: base("pflege_vitals"),pflege_medis: base("pflege_medis"),pflege_fluess: base("pflege_fluess"),pflege_lagerung: base("pflege_lagerung"),pflege_schmerz: base("pflege_schmerz"),
-  kh_patienten: base("kh_patienten"),kh_anordnungen: base("kh_anordnungen"),kh_massnahmen: base("kh_massnahmen"),kh_sturz: base("kh_sturz"),kh_wunden: base("kh_wunden"),kh_vitals: base("kh_vitals"),kh_medis: base("kh_medis"),kh_fluess: base("kh_fluess"),kh_lagerung: base("kh_lagerung"),kh_schmerz: base("kh_schmerz"),
-  amb_klienten: base("amb_klienten"),amb_anordnungen: base("amb_anordnungen"),amb_massnahmen: base("amb_massnahmen"),amb_sturz: base("amb_sturz"),amb_wunden: base("amb_wunden"),amb_vitals: base("amb_vitals"),amb_medis: base("amb_medis"),amb_fluess: base("amb_fluess"),amb_lagerung: base("amb_lagerung"),amb_schmerz: base("amb_schmerz"),
-  ergo_klienten: base("ergo_klienten"),ergo_einheiten: base("ergo_einheiten"),
-  apo_kunden: base("apo_kunden"),apo_abgaben: base("apo_abgaben"),
-  kid_patienten: base("kid_patienten"),kid_besuche: base("kid_besuche"),kid_termine: base("kid_termine"),
-};
-
-/* ====== Boot ====== */
-document.addEventListener("DOMContentLoaded", async () => {
-  const ui = loadUI();
-  if (ui.dark || (window.matchMedia?.('(prefers-color-scheme: dark)').matches && ui.dark !== false)) {
-    document.documentElement.classList.add("dark");
-  }
-
-  setupDropdown("companyDropdown","companyBtn","companyMenu");
-  setupDropdown("moreDropdown","moreBtn","moreMenu");
-  buildCompanyMenu();
-
-  qs("#printBtn")?.addEventListener("click", () => window.print());
-  document.body.addEventListener("click", (e)=>{
-    const btn = e.target.closest("#moreMenu button"); if (!btn) return;
-    const act = btn.dataset.action;
-    if (act==="export-json") exportAllJSON();
-    if (act==="dark"){ document.documentElement.classList.toggle("dark"); saveUI({ dark: document.documentElement.classList.contains("dark") }); }
-    if (act==="reset") alert("Bei zentraler Speicherung gibt es hier keinen ‚Alles löschen‘-Button.");
-  });
-
-  // Leadership-Panel einmalig erzeugen und vor #hero einfügen
-  ensureLeadershipPanel();
-
-  await authReady;
-  await initRealtime();
-
-  try { await addDoc(collection(db, base("_diagnose")), { ok:true, _ts: serverTimestamp() }); }
-  catch (e){ console.warn("Diagnose fehlgeschlagen", e); }
-
-  switchTo(CURRENT_PAGE);
-});
-
-/* ====== Realtime (wie gehabt) ====== */
+/* ====== Realtime ====== */
 async function initRealtime(){
   const ascByDate = (path) => query(collection(db, path), orderBy("datum","asc"));
   const plain     = (path) => collection(db, path);
@@ -163,13 +205,13 @@ async function initRealtime(){
   subscribe(plain(COL.pflege_bewohner), STORE.pflege.bewohner);
   subscribe(ascByDate(COL.pflege_anordnungen), STORE.pflege.anordnungen);
   subscribe(plain(COL.pflege_massnahmen), STORE.pflege.massnahmen);
-  subscribe(ascByDate(COL.pflege_sturz), STORE.pflege.sturz);
-  subscribe(ascByDate(COL.pflege_wunden), STORE.pflege.wunden);
-  subscribe(ascByDate(COL.pflege_vitals), STORE.pflege.vitals);
-  subscribe(ascByDate(COL.pflege_medis), STORE.pflege.medis);
-  subscribe(ascByDate(COL.pflege_fluess), STORE.pflege.fluess);
-  subscribe(ascByDate(COL.pflege_lagerung), STORE.pflege.lagerung);
-  subscribe(ascByDate(COL.pflege_schmerz), STORE.pflege.schmerz);
+  subscribe(ascByDate(COL.pflege_sturz), STORE.pflege_sturz);
+  subscribe(ascByDate(COL.pflege_wunden), STORE.pflege_wunden);
+  subscribe(ascByDate(COL.pflege_vitals), STORE.pflege_vitals);
+  subscribe(ascByDate(COL.pflege_medis), STORE.pflege_medis);
+  subscribe(ascByDate(COL.pflege_fluess), STORE.pflege_fluess);
+  subscribe(ascByDate(COL.pflege_lagerung), STORE.pflege_lagerung);
+  subscribe(ascByDate(COL.pflege_schmerz), STORE.pflege_schmerz);
 
   // Krankenhaus
   subscribe(plain(COL.kh_patienten), STORE.krankenhaus.patienten);
@@ -208,7 +250,6 @@ async function initRealtime(){
   subscribe(ascByDate(COL.kid_besuche), STORE.kinderarzt.besuche);
   subscribe(ascByDate(COL.kid_termine), STORE.kinderarzt.termine);
 }
-
 function subscribe(refOrQuery, targetArr){
   onSnapshot(refOrQuery, (snap)=>{
     targetArr.length = 0;
@@ -216,23 +257,43 @@ function subscribe(refOrQuery, targetArr){
     render();
   });
 }
-
 async function addDocTo(path, data){
   return addDoc(collection(db, path), { ...data, _ts: serverTimestamp() });
 }
 
-/* ====== Dropdown / Navigation ====== */
-function setupDropdown(wrapperId, buttonId, menuId){
-  const wrap = qs("#"+wrapperId), btn=qs("#"+buttonId), menu=qs("#"+menuId);
-  const close=()=>{wrap?.classList.remove("open");btn?.setAttribute("aria-expanded","false")};
-  btn?.addEventListener("click",(e)=>{ e.stopPropagation(); wrap.classList.toggle("open"); btn.setAttribute("aria-expanded", wrap.classList.contains("open")?"true":"false"); if (wrap.classList.contains("open")) menu?.focus(); });
-  document.addEventListener("click",(e)=>{ if (!wrap?.contains(e.target)) close(); });
-  document.addEventListener("keydown",(e)=>{ if (e.key==="Escape") close(); });
-}
-
+/* ====== Routing ====== */
 function switchTo(id){ CURRENT_PAGE = id; saveUI({lastPage:id}); render(); }
 
-/* ====== UI-Bausteine ====== */
+/* ====== Leadership-Bar (nur Unterseiten) ====== */
+function ensureLeadershipPanel(){
+  if (qs("#leadership-panel")) return;
+  const hero = qs("#hero") || document.body.firstElementChild;
+  const sec = ce("section",{id:"leadership-panel",className:"table-wrap"});
+  sec.innerHTML = `
+    <table class="board-table" aria-label="Leitung">
+      <thead><tr><th>Name</th><th>Rolle</th><th>Telefon</th><th>Handy</th><th>E-Mail</th></tr></thead>
+      <tbody id="leadership-body"></tbody>
+    </table>`;
+  hero?.parentNode?.insertBefore(sec, hero);
+}
+function renderLeadership(pageId){
+  const panel = qs("#leadership-panel"); if (!panel) return;
+  const bodyEl = qs("#leadership-body");
+  const cfg = LEADERSHIP[pageId];
+  if (!cfg){ panel.style.display="none"; bodyEl.innerHTML=""; return; }
+  panel.style.display="block";
+  bodyEl.innerHTML = (cfg.rows||[]).map(r=>`
+    <tr>
+      <td>${esc(r.name)}</td>
+      <td>${esc(r.role||"—")}</td>
+      <td>${esc(r.phone||"—")}</td>
+      <td>${esc(r.mobile||"—")}</td>
+      <td>${r.email?`<a href="mailto:${esc(r.email)}">${esc(r.email)}</a>`:"—"}</td>
+    </tr>`).join("");
+}
+const esc = (s="") => String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+/* ====== UI-Bausteine (Cards/Forms) ====== */
 function cardInfo(title, text){
   const d = ce("div",{className:"card"});
   const htmlText = (text||"").split("\n\n").map(t=>`<p class="muted">${t}</p>`).join("");
@@ -253,54 +314,21 @@ function listFormCard({title,list,renderLine,formHTML,onSubmit}){
   wrap.appendChild(form); return wrap;
 }
 function collapsibleCard(title, buildBody){ const card=ce("div",{className:"card"}); const btn=ce("button",{className:"btn",textContent:title}); btn.style.marginBottom="6px"; const body=ce("div",{className:"panel"}); btn.addEventListener("click",()=>{ const open=body.classList.toggle("show"); btn.classList.toggle("active",open); if (open && typeof buildBody==="function" && !body._built){ buildBody(body); body._built=true; } }); card.appendChild(btn); card.appendChild(body); return card; }
-function exportCSV(rows, filename="export.csv"){ if (!rows?.length){alert("Keine Daten");return} const keys=[...new Set(rows.flatMap(r=>Object.keys(r).filter(k=>k!=="id"&&k!=="_ts")))]; const esc=(v)=>`"${String(v??"").replace(/"/g,'""')}"`; const csv=[keys.join(";"),...rows.map(r=>keys.map(k=>esc(r[k])).join(";"))].join("\n"); const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})); const a=ce("a",{href:url,download:filename}); document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),300); }
-
-/* ====== Leadership-Bar (neu) ====== */
-function ensureLeadershipPanel(){
-  if (qs("#leadership-panel")) return;
-  const hero = qs("#hero") || qs(".hero") || document.body.firstElementChild;
-  const sec = ce("section",{id:"leadership-panel",className:"panel"});
-  sec.innerHTML = `
-    <h3 id="leadership-title" class="panel-title">Leitung</h3>
-    <table class="board-table" aria-label="Leitungskontakte">
-      <thead><tr><th>Name</th><th>Rolle</th><th>Telefon</th><th>Handy</th><th>E-Mail</th></tr></thead>
-      <tbody id="leadership-body"></tbody>
-    </table>`;
-  hero?.parentNode?.insertBefore(sec, hero); // vor den Hero-Bereich setzen
-}
-function renderLeadership(pageId){
-  const panel = qs("#leadership-panel"); if (!panel) return;
-  const titleEl = qs("#leadership-title"), bodyEl = qs("#leadership-body");
-  const cfg = LEADERSHIP[pageId];
-  if (!cfg){ panel.style.display="none"; bodyEl.innerHTML=""; return; }
-  panel.style.display="block";
-  titleEl.textContent = cfg.title || "Leitung";
-  bodyEl.innerHTML = (cfg.rows||[]).map(r=>`
-    <tr>
-      <td>${esc(r.name)}</td>
-      <td>${esc(r.role||"—")}</td>
-      <td>${esc(r.phone||"—")}</td>
-      <td>${esc(r.mobile||"—")}</td>
-      <td>${r.email?`<a href="mailto:${esc(r.email)}">${esc(r.email)}</a>`:"—"}</td>
-    </tr>
-  `).join("") || `<tr><td colspan="5">—</td></tr>`;
-}
-const esc = (s="") => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
 /* ====== Render ====== */
 function render(){
   const page = PAGES.find(p=>p.id===CURRENT_PAGE) || PAGES[0];
 
-  // Leadership nur auf den Nicht-Home-Seiten
+  // Leadership: nur Unterseiten
   if (CURRENT_PAGE==="home") renderLeadership(undefined);
   else renderLeadership(CURRENT_PAGE);
 
-  document.dispatchEvent(new CustomEvent('stiftung:pagechange',{detail:{title:page.title,slogan:page.slogan}}));
-
+  // Hero aktualisieren
   const hero = qs("#hero");
-  if (hero) hero.innerHTML = `<div class="card"><h1>${page.title}</h1><p>${page.slogan}</p></div>`;
+  hero.innerHTML = `<div class="card"><h1>${page.title}</h1><p>${page.slogan}</p></div>`;
 
-  const app = qs("#app"); if (!app) return;
+  // Page-Content
+  const app = qs("#app");
   app.innerHTML = "";
 
   if (page.id==="home") return renderHome(app);
@@ -314,56 +342,122 @@ function render(){
   if (page.id==="kinderarzt") return renderKinderarzt(app);
 }
 
-/* ====== Seiten (wie gehabt) ====== */
+/* ====== HOME: NUR Info, Stiftungsleitung (nebeneinander), Krabblerstraße ====== */
 function renderHome(app){
-  app.appendChild(cardInfo("Liebe Mitarbeitenden,",
-`es ist uns eine große Freude, euch als Team und Mitbegründer in unserer Unternehmensgruppe willkommen zu heißen.
+  // 1) Infotext
+  app.appendChild(cardInfo("Liebe Kolleginnen und Kollegen,",
+`Es ist uns eine große Freude, euch als Team und Mitbegründer unserer Unternehmensgruppe willkommen zu heißen.
 
 Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und zentral synchronisiert.
 
-Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten.
+Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten.`));
 
-Hier findet ihr in Zukunft wertvolle News, aktuelle Nachrichten, kurze Infos und Fortbildungen und vieles Spannendes rund um unsere Unternehmensgruppe.`));
+  // 2) Stiftungsleitung nebeneinander
+  const grid = ce("section",{className:"board-grid", ariaLabel:"Stiftungsleitung"});
+  grid.innerHTML = `
+    <div class="board-card">
+      <h4>Präsident</h4>
+      <div class="name">Z. Bremkens</div>
+      <div>☎ 0201 12 51 74 - 31</div>
+      <div>📱 0175 722 0577</div>
+      <div><a href="mailto:z.bremkens@die-boje.de">z.bremkens@die-boje.de</a></div>
+    </div>
+    <div class="board-card">
+      <h4>Vorsitzende</h4>
+      <div class="name">B. Terhard-Hammouda</div>
+      <div>☎ —</div><div>📱 —</div><div>—</div>
+    </div>
+    <div class="board-card">
+      <h4>Vorsitzender</h4>
+      <div class="name">A.R. Itani</div>
+      <div>☎ —</div><div>📱 —</div><div>—</div>
+    </div>
+    <div class="board-card">
+      <h4>Geschäftsführung</h4>
+      <div class="name">V. Lauth</div>
+      <div>☎ —</div><div>📱 —</div><div>—</div>
+    </div>
+  `;
+  app.appendChild(grid);
+
+  // 3) Krabblerstraße-News
+  const news = ce("article",{className:"card", id:"foundationNote"});
+  news.innerHTML = `
+    <h3>News – Krabblerstraße</h3>
+    <p>
+      Liebe KollegInnen, am <strong>18.09.2025</strong> treffen wir uns um <strong>10 Uhr</strong> am Standort der
+      Boje in der Elisenstraße. Ab ca. <strong>12:30 Uhr</strong> gibt es ein kleines Mittagessen. Anschließend werden
+      wir uns gemeinsam zu unserem Kooperationspartner, dem <strong>Kindergarten an der Krabblerstr. in Essen-Altenessen</strong>, begeben.
+      Dort werden wir neben dem Oberbürgermeister auch auf den Vorstand der Stiftung und viele spannende Leute treffen.
+      Gemeinsam werden wir bis ca. <strong>18 Uhr</strong> vom Kindergarten lernen, wie wir unsere Unternehmen in Zukunft gestalten können.
+      Wir freuen uns sehr auf euch. <br> <strong>Eure Hammouda-Itani-Stiftung.</strong>
+    </p>
+    <p class="foundation-email" style="margin-top:10px">
+      Zentrale Kontaktadresse BVB Pro: <a href="mailto:bvb-pro@die-boje.de">bvb-pro@die-boje.de</a>
+    </p>
+  `;
+  app.appendChild(news);
 }
 
+/* ====== Verwaltung (ohne fremde Leitungen) ====== */
 function renderVerwaltung(app){
-  app.appendChild(cardInfo("Hinweis","Zentrale Verwaltung: Hier können später Richtlinien, Checklisten und Vorlagen liegen (Training/Platzhalter)."));
-  const tools = ce("div",{className:"card"});
-  tools.innerHTML = `<h3>Werkzeuge</h3><div class="toolbar"><button class="btn primary" id="exportAllBtn">Gesamtexport (JSON)</button></div>`;
-  tools.querySelector("#exportAllBtn").addEventListener("click", exportAllJSON);
-  app.appendChild(tools);
+  app.appendChild(cardInfo("Hinweis",
+    "Zentrale Verwaltung: Hier können später Richtlinien, Checklisten und Vorlagen liegen (Training/Platzhalter)."));
 }
 
 /* ---------- Kita ---------- */
 function renderKita(app){
-  app.appendChild(cardInfo("Info","Die drei Löwen Kindergarten: Bitte nur Übungsdaten verwenden. Alle Einträge werden zentral gespeichert."));
+  app.appendChild(cardInfo("Info",
+    "Die drei Löwen Kindergarten: Bitte nur Übungsdaten verwenden. Alle Einträge werden zentral gespeichert."));
+  // Kinder
   app.appendChild(listFormCard({
     title:"Kinder",
     list: STORE.kita.kinder,
     renderLine: k => `<strong>${k.vorname} ${k.nachname}</strong> — geb. ${k.geburtstag||"—"} ${k.gruppe?badge(k.gruppe):""}`,
-    formHTML: `${input("Vorname","vorname",true)}${input("Nachname","nachname",true)}${input("Geburtstag","geburtstag",false,"date")}${input("Gruppe","gruppe",false,"text","Sonnen / Sterne / Löwen …")}`,
+    formHTML: `
+      ${input("Vorname","vorname",true)}
+      ${input("Nachname","nachname",true)}
+      ${input("Geburtstag","geburtstag",false,"date")}
+      ${input("Gruppe","gruppe",false,"text","Sonnen / Sterne / Löwen …")}
+    `,
     onSubmit: data => addDocTo(COL.kita_kinder, data)
   }));
-  app.appendChild(collapsibleCard("Weitere Module anzeigen …",(body)=>{
+  // weitere Module (Beobachtungen/Anwesenheit/Eltern)
+  app.appendChild(collapsibleCard("Weitere Module …",(body)=>{
     body.appendChild(listFormCard({
       title:"Beobachtungen",
       list: STORE.kita.beobachtungen,
       renderLine: b => `<strong>${b.kindId}</strong> • ${b.bereich||"—"} — <em>${b.datum||"—"}</em><br>${b.text||"—"}`,
-      formHTML: `${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}${input("Datum","datum",false,"date",today())}${select("Bereich","bereich",["Sprache","Motorik","Sozial","Kognition","Emotional"])}${textarea("Text","text")}`,
+      formHTML: `
+        ${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}
+        ${input("Datum","datum",false,"date",today())}
+        ${select("Bereich","bereich", ["Sprache","Motorik","Sozial","Kognition","Emotional"])}
+        ${textarea("Text","text")}
+      `,
       onSubmit: data => addDocTo(COL.kita_beobachtungen, data)
     }));
     body.appendChild(listFormCard({
       title:"Anwesenheit",
       list: STORE.kita.anwesenheit,
       renderLine: a => `<strong>${a.kindId}</strong> — ${a.status||"—"} am <em>${a.datum||"—"}</em> ${a.abholer?("• Abholer: "+a.abholer):""}`,
-      formHTML: `${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}${input("Datum","datum",false,"date",today())}${select("Status","status",["anwesend","abwesend"])}${input("Abholer (optional)","abholer",false)}`,
+      formHTML: `
+        ${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}
+        ${input("Datum","datum",false,"date",today())}
+        ${select("Status","status", ["anwesend","abwesend"])}
+        ${input("Abholer (optional)","abholer",false)}
+      `,
       onSubmit: data => addDocTo(COL.kita_anwesenheit, data)
     }));
     body.appendChild(listFormCard({
       title:"Elternkommunikation",
       list: STORE.kita.eltern,
       renderLine: x => `<strong>${x.kindId}</strong> • ${x.kanal||"—"} — <em>${x.datum||"—"}</em><br>${x.inhalt||"—"}`,
-      formHTML: `${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}${input("Datum","datum",false,"date",today())}${select("Kanal","kanal",["Tür-und-Angel","Telefon","E-Mail","Elterngespräch"])}${textarea("Inhalt","inhalt")}`,
+      formHTML: `
+        ${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}
+        ${input("Datum","datum",false,"date",today())}
+        ${select("Kanal","kanal", ["Tür-und-Angel","Telefon","E-Mail","Elterngespräch"])}
+        ${textarea("Inhalt","inhalt")}
+      `,
       onSubmit: data => addDocTo(COL.kita_eltern, data)
     }));
   }));
@@ -371,57 +465,115 @@ function renderKita(app){
 
 /* ---------- Pflegeheim ---------- */
 function renderPflege(app){
-  app.appendChild(cardInfo("Info","Pflegeheim der Gemeinschaft: Stammdaten unter ‚Bewohner‘, weitere Dokumentation als Module."));
+  app.appendChild(cardInfo("Info",
+    "Pflegeheim der Gemeinschaft: Stammdaten unter ‚Bewohner‘, weitere Dokumentation als Module."));
   app.appendChild(listFormCard({
     title:"Bewohner",
     list: STORE.pflege.bewohner,
     renderLine: p => `<strong>${p.vorname} ${p.nachname}</strong> — geb. ${p.geburt||"—"} ${p.zimmer?badge("Zimmer "+p.zimmer):""} ${p.pflegegrad?badge("PG "+p.pflegegrad):""}`,
-    formHTML: `${input("Vorname","vorname",true)}${input("Nachname","nachname",true)}${input("Geburt","geburt",false,"date")}${input("Zimmer","zimmer",false)}${input("Pflegegrad","pflegegrad",false,"number")}`,
-    onSubmit: data => addDocTo(COL.pflege_bewohner, {...data,pflegegrad:data.pflegegrad?Number(data.pflegegrad):undefined})
+    formHTML: `
+      ${input("Vorname","vorname",true)}
+      ${input("Nachname","nachname",true)}
+      ${input("Geburt","geburt",false,"date")}
+      ${input("Zimmer","zimmer",false)}
+      ${input("Pflegegrad","pflegegrad",false,"number")}
+    `,
+    onSubmit: data => addDocTo(COL.pflege_bewohner, { ...data, pflegegrad: data.pflegegrad?Number(data.pflegegrad):undefined })
   }));
   app.appendChild(collapsibleCard("Dokumentation & Module …",(body)=>{
-    buildCommonModules(body,{people:STORE.pflege.bewohner.map(p=>`${p.vorname} ${p.nachname}`),anordPath:COL.pflege_anordnungen,massnPath:COL.pflege_massnahmen,sturzPath:COL.pflege_sturz,wundePath:COL.pflege_wunden,vitPath:COL.pflege_vitals,mediPath:COL.pflege_medis,flPath:COL.pflege_fluess,lagPath:COL.pflege_lagerung,schPath:COL.pflege_schmerz,whoLabel:"Bewohner"});
+    buildCommonModules(body, {
+      people: STORE.pflege.bewohner.map(p=>`${p.vorname} ${p.nachname}`),
+      anordPath: COL.pflege_anordnungen,
+      massnPath: COL.pflege_massnahmen,
+      sturzPath: COL.pflege_sturz,
+      wundePath: COL.pflege_wunden,
+      vitPath: COL.pflege_vitals,
+      mediPath: COL.pflege_medis,
+      flPath: COL.pflege_fluess,
+      lagPath: COL.pflege_lagerung,
+      schPath: COL.pflege_schmerz,
+      whoLabel: "Bewohner"
+    });
   }));
 }
 
 /* ---------- Krankenhaus ---------- */
 function renderKrankenhaus(app){
-  app.appendChild(cardInfo("Info","Mond-Krankenhaus: Erst Patienten aufnehmen, weitere Dokumentation aufklappbar."));
+  app.appendChild(cardInfo("Info",
+    "Mond-Krankenhaus: Erst Patienten aufnehmen, weitere Dokumentation aufklappbar."));
   app.appendChild(listFormCard({
     title:"Patienten",
     list: STORE.krankenhaus.patienten,
     renderLine: p => `<strong>${p.name}</strong> — ${p.fach||"—"} • ${p.datum||"—"}`,
-    formHTML: `${input("Patientenname","name",true)}${input("Geburt","geburt",false,"date")}${select("Fachbereich","fach",["Innere","Chirurgie","Geriatrie"])}${input("Aufnahmedatum","datum",false,"date",today())}`,
+    formHTML: `
+      ${input("Patientenname","name",true)}
+      ${input("Geburt","geburt",false,"date")}
+      ${select("Fachbereich","fach", ["Innere","Chirurgie","Geriatrie"])}
+      ${input("Aufnahmedatum","datum",false,"date",today())}
+    `,
     onSubmit: data => addDocTo(COL.kh_patienten, data)
   }));
   app.appendChild(collapsibleCard("Dokumentation & Module …",(body)=>{
-    buildCommonModules(body,{people:STORE.krankenhaus.patienten.map(p=>p.name),anordPath:COL.kh_anordnungen,massnPath:COL.kh_massnahmen,sturzPath:COL.kh_sturz,wundePath:COL.kh_wunden,vitPath:COL.kh_vitals,mediPath:COL.kh_medis,flPath:COL.kh_fluess,lagPath:COL.kh_lagerung,schPath:COL.kh_schmerz,whoLabel:"Patient"});
+    buildCommonModules(body, {
+      people: STORE.krankenhaus.patienten.map(p=>p.name),
+      anordPath: COL.kh_anordnungen,
+      massnPath: COL.kh_massnahmen,
+      sturzPath: COL.kh_sturz,
+      wundePath: COL.kh_wunden,
+      vitPath: COL.kh_vitals,
+      mediPath: COL.kh_medis,
+      flPath: COL.kh_fluess,
+      lagPath: COL.kh_lagerung,
+      schPath: COL.kh_schmerz,
+      whoLabel: "Patient"
+    });
   }));
 }
 
 /* ---------- Ambulant ---------- */
 function renderAmbulant(app){
-  app.appendChild(cardInfo("Info","Ambulanter Pflegedienst zum Stern: Erst Klienten erfassen, dann Dokumentation aufklappen."));
+  app.appendChild(cardInfo("Info",
+    "Ambulanter Pflegedienst zum Stern: Erst Klienten erfassen, dann Dokumentation aufklappen."));
   app.appendChild(listFormCard({
     title:"Klienten",
     list: STORE.ambulant.klienten,
     renderLine: x => `<strong>${x.name}</strong> — ${x.adresse||"—"} ${x.pflegegrad?badge("PG "+x.pflegegrad):""}`,
-    formHTML: `${input("Name","name",true)}${input("Adresse","adresse")}${input("Pflegegrad","pflegegrad",false,"number")}`,
-    onSubmit: data => addDocTo(COL.amb_klienten,{...data,pflegegrad:data.pflegegrad?Number(data.pflegegrad):undefined})
+    formHTML: `
+      ${input("Name","name",true)}
+      ${input("Adresse","adresse")}
+      ${input("Pflegegrad","pflegegrad",false,"number")}
+    `,
+    onSubmit: data => addDocTo(COL.amb_klienten, { ...data, pflegegrad: data.pflegegrad?Number(data.pflegegrad):undefined })
   }));
   app.appendChild(collapsibleCard("Dokumentation & Module …",(body)=>{
-    buildCommonModules(body,{people:STORE.ambulant.klienten.map(p=>p.name),anordPath:COL.amb_anordnungen,massnPath:COL.amb_massnahmen,sturzPath:COL.amb_sturz,wundePath:COL.amb_wunden,vitPath:COL.amb_vitals,mediPath:COL.amb_medis,flPath:COL.amb_fluess,lagPath:COL.amb_lagerung,schPath:COL.amb_schmerz,whoLabel:"Klient"});
+    buildCommonModules(body, {
+      people: STORE.ambulant.klienten.map(p=>p.name),
+      anordPath: COL.amb_anordnungen,
+      massnPath: COL.amb_massnahmen,
+      sturzPath: COL.amb_sturz,
+      wundePath: COL.amb_wunden,
+      vitPath: COL.amb_vitals,
+      mediPath: COL.amb_medis,
+      flPath: COL.amb_fluess,
+      lagPath: COL.amb_lagerung,
+      schPath: COL.amb_schmerz,
+      whoLabel: "Klient"
+    });
   }));
 }
 
 /* ---------- Ergo ---------- */
 function renderErgo(app){
-  app.appendChild(cardInfo("Info","Ergotherapeuten „Unart“: Erst Klienten, Einheiten aufklappbar."));
+  app.appendChild(cardInfo("Info",
+    "Ergotherapeuten „Unart“: Erst Klienten, Einheiten aufklappbar."));
   app.appendChild(listFormCard({
     title:"Klienten",
     list: STORE.ergo.klienten,
     renderLine: k => `<strong>${k.name}</strong> — Ziel: ${k.ziel||"—"}`,
-    formHTML: `${input("Name","name",true)}${input("Ziel (optional)","ziel")}`,
+    formHTML: `
+      ${input("Name","name",true)}
+      ${input("Ziel (optional)","ziel")}
+    `,
     onSubmit: data => addDocTo(COL.ergo_klienten, data)
   }));
   app.appendChild(collapsibleCard("Einheiten …",(body)=>{
@@ -429,7 +581,12 @@ function renderErgo(app){
       title:"Einheiten",
       list: STORE.ergo.einheiten,
       renderLine: x => `<strong>${x.klient}</strong> — Ziel: ${x.ziel||"—"} • <em>${x.datum||"—"}</em><br>${x.inhalt||"—"}`,
-      formHTML: `${select("Klient","klient", STORE.ergo.klienten.map(k=>k.name))}${input("Datum","datum",false,"date",today())}${input("Ziel","ziel",false,"text","Feinmotorik, ADL, Kognition …")}${textarea("Inhalt/Übung","inhalt")}`,
+      formHTML: `
+        ${select("Klient","klient", STORE.ergo.klienten.map(k=>k.name))}
+        ${input("Datum","datum",false,"date",today())}
+        ${input("Ziel","ziel",false,"text","Feinmotorik, ADL, Kognition …")}
+        ${textarea("Inhalt/Übung","inhalt")}
+      `,
       onSubmit: data => addDocTo(COL.ergo_einheiten, data)
     }));
   }));
@@ -437,12 +594,16 @@ function renderErgo(app){
 
 /* ---------- Apotheke ---------- */
 function renderApotheke(app){
-  app.appendChild(cardInfo("Info","Sonnen Apotheke: Erst Kunden erfassen, Abgaben aufklappbar."));
+  app.appendChild(cardInfo("Info",
+    "Sonnen Apotheke: Erst Kunden erfassen, Abgaben aufklappbar."));
   app.appendChild(listFormCard({
     title:"Kunden",
     list: STORE.apotheke.kunden,
     renderLine: k => `<strong>${k.name}</strong> — ${k.geburt||"Geburt unbekannt"}`,
-    formHTML: `${input("Name","name",true)}${input("Geburt (optional)","geburt",false,"date")}`,
+    formHTML: `
+      ${input("Name","name",true)}
+      ${input("Geburt (optional)","geburt",false,"date")}
+    `,
     onSubmit: data => addDocTo(COL.apo_kunden, data)
   }));
   app.appendChild(collapsibleCard("Abgaben …",(body)=>{
@@ -450,7 +611,12 @@ function renderApotheke(app){
       title:"Abgaben",
       list: STORE.apotheke.abgaben,
       renderLine: x => `<strong>${x.kunde}</strong> — ${x.praeparat||"—"} • ${x.dosis||"—"} <em>(${x.datum||"—"})</em>`,
-      formHTML: `${select("Kunde","kunde", STORE.apotheke.kunden.map(k=>k.name))}${input("Datum","datum",false,"date",today())}${input("Präparat","praeparat",false,"text","Platzhalterpräparat")}${input("Dosis/Anweisung","dosis",false,"text","z. B. 1-0-1, nach dem Essen")}`,
+      formHTML: `
+        ${select("Kunde","kunde", STORE.apotheke.kunden.map(k=>k.name))}
+        ${input("Datum","datum",false,"date",today())}
+        ${input("Präparat","praeparat",false,"text","Platzhalterpräparat")}
+        ${input("Dosis/Anweisung","dosis",false,"text","z. B. 1-0-1, nach dem Essen")}
+      `,
       onSubmit: data => addDocTo(COL.apo_abgaben, data)
     }));
   }));
@@ -458,12 +624,19 @@ function renderApotheke(app){
 
 /* ---------- Kinderarzt ---------- */
 function renderKinderarzt(app){
-  app.appendChild(cardInfo("Info","Lieblings-Kinder: Erst Patienten erfassen, Besuche/Termine aufklappbar."));
+  app.appendChild(cardInfo("Info",
+    "Lieblings-Kinder: Erst Patienten erfassen, Besuche/Termine aufklappbar."));
   app.appendChild(listFormCard({
     title:"Patienten",
     list: STORE.kinderarzt.patienten,
     renderLine: p => `<strong>${p.vorname} ${p.nachname}</strong> — geb. ${p.geburt||"—"} ${p.kasse?badge(p.kasse):""} ${p.versnr?badge("Vers.-Nr. "+p.versnr):""}`,
-    formHTML: `${input("Vorname","vorname",true)}${input("Nachname","nachname",true)}${input("Geburt","geburt",false,"date")}${input("Krankenkasse","kasse")}${input("Versichertennummer","versnr",false,"text","z. B. A123456789")}`,
+    formHTML: `
+      ${input("Vorname","vorname",true)}
+      ${input("Nachname","nachname",true)}
+      ${input("Geburt","geburt",false,"date")}
+      ${input("Krankenkasse","kasse")}
+      ${input("Versichertennummer","versnr",false,"text","z. B. A123456789")}
+    `,
     onSubmit: data => addDocTo(COL.kid_patienten, data)
   }));
   app.appendChild(collapsibleCard("Besuche & Termine …",(body)=>{
@@ -471,87 +644,130 @@ function renderKinderarzt(app){
       title:"Besuche",
       list: STORE.kinderarzt.besuche,
       renderLine: b => `<strong>${b.patient}</strong> — Grund: ${b.grund||"—"} • <em>${b.datum||"—"}</em><br>Befund: ${b.befund||"—"} • Therapie: ${b.therapie||"—"}`,
-      formHTML: `${select("Patient","patient", STORE.kinderarzt.patienten.map(p=>`${p.vorname} ${p.nachname}`))}${input("Datum","datum",false,"date",today())}${input("Grund (z. B. U6, Fieber, Impfung)","grund")}${textarea("Befund","befund")}${textarea("Therapie/Empfehlung","therapie")}`,
+      formHTML: `
+        ${select("Patient","patient", STORE.kinderarzt.patienten.map(p=>`${p.vorname} ${p.nachname}`))}
+        ${input("Datum","datum",false,"date",today())}
+        ${input("Grund (z. B. U6, Fieber, Impfung)","grund")}
+        ${textarea("Befund","befund")}
+        ${textarea("Therapie/Empfehlung","therapie")}
+      `,
       onSubmit: data => addDocTo(COL.kid_besuche, data)
     }));
     body.appendChild(listFormCard({
       title:"Termine",
       list: STORE.kinderarzt.termine.slice().sort((a,b)=>(a.datum+a.zeit).localeCompare(b.datum+b.zeit)),
       renderLine: t => `<strong>${t.patient}</strong> — ${t.grund||"Termin"} am <em>${t.datum||"—"}</em> um <em>${t.zeit||"--:--"}</em>${t.notiz?("<br>"+t.notiz):""}`,
-      formHTML: `${select("Patient","patient", STORE.kinderarzt.patienten.map(p=>`${p.vorname} ${p.nachname}`))}${input("Datum","datum",true,"date",today())}${input("Uhrzeit","zeit",true,"time","09:00")}${input("Grund","grund",false,"text","z. B. U6, Impfung, Fieber")}${textarea("Notiz","notiz")}`,
+      formHTML: `
+        ${select("Patient","patient", STORE.kinderarzt.patienten.map(p=>`${p.vorname} ${p.nachname}`))}
+        ${input("Datum","datum",true,"date",today())}
+        ${input("Uhrzeit","zeit",true,"time","09:00")}
+        ${input("Grund","grund",false,"text","z. B. U6, Impfung, Fieber")}
+        ${textarea("Notiz","notiz")}
+      `,
       onSubmit: data => addDocTo(COL.kid_termine, data)
     }));
   }));
 }
 
-/* ====== Gemeinsame Module ====== */
-function buildCommonModules(container,cfg){
-  const people = cfg.people||[], who=cfg.whoLabel||"Person";
+/* ====== Gemeinsame Module (Pflege/KH/Ambulant) ====== */
+function buildCommonModules(container, cfg){
+  const people = cfg.people || [];
+  const who = cfg.whoLabel || "Person";
+
+  // Anordnungen
   container.appendChild(listFormCard({
     title:"Ärztliche Anordnungen",
     list: STOREFromPath(cfg.anordPath),
     renderLine: a => `<strong>${a.person}</strong> — ${a.anordnung||"—"} <em>(${a.datum||"—"})</em>`,
-    formHTML: `${select(who,"person",people)}${input("Datum","datum",false,"date",today())}${textarea("Anordnung","anordnung")}`,
+    formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${textarea("Anordnung","anordnung")}`,
     onSubmit: data => addDocTo(cfg.anordPath, data)
   }));
+
+  // Maßnahmen (abhakbar)
   container.appendChild(listFormCard({
     title:"Maßnahmen (abhakbar)",
     list: STOREFromPath(cfg.massnPath),
     renderLine: m => { const id=m.id, checked=m.done?"checked":""; return `<strong>${m.person}</strong> — ${m.text||"—"} • Fällig: ${m.faellig||"—"} <label style="display:inline-flex;align-items:center;gap:.4rem;margin-left:.6rem;"><input type="checkbox" data-doc="${id}" ${checked} class="chk-done"> erledigt</label>`; },
-    formHTML: `${select(who,"person",people)}${input("Fällig am","faellig",false,"date",today())}${input("Maßnahme","text",true)}`,
+    formHTML: `${select(who,"person", people)}${input("Fällig am","faellig",false,"date",today())}${input("Maßnahme","text",true)}`,
     onSubmit: data => addDocTo(cfg.massnPath, { ...data, done:false })
   }));
-  container.addEventListener("change",async(e)=>{ const chk=e.target.closest(".chk-done"); if (!chk) return; const id=chk.dataset.doc; try{ await updateDoc(doc(db,cfg.massnPath,id),{done:chk.checked,_ts:serverTimestamp()}); }catch(err){ alert("Konnte Maßnahme nicht aktualisieren."); console.error(err); }});
+  container.addEventListener("change", async (e)=>{
+    const chk = e.target.closest(".chk-done"); if (!chk) return;
+    const id = chk.dataset.doc;
+    try{ await updateDoc(doc(db, cfg.massnPath, id), { done: chk.checked, _ts: serverTimestamp() }); }
+    catch(err){ alert("Konnte Maßnahme nicht aktualisieren."); console.error(err); }
+  });
+
+  // Sturz
   container.appendChild(listFormCard({
     title:"Sturzbericht",
     list: STOREFromPath(cfg.sturzPath),
     renderLine: s => `<strong>${s.person}</strong> — ${s.ort||"—"} am <em>${s.datum||"—"}</em><br>Folgen: ${s.folgen||"—"} • Arzt: ${s.arzt||"—"} • Meldung: ${s.meldung||"—"}`,
-    formHTML: `${select(who,"person",people)}${input("Datum","datum",false,"date",today())}${input("Ort","ort",false,"text","Bad, Zimmer, Flur …")}${textarea("Folgen","folgen")}${select("Arzt informiert?","arzt",["ja","nein"])}${textarea("Meldung/Infofluss","meldung","Team/Angehörige informiert …")}`,
+    formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Ort","ort",false,"text","Bad, Zimmer, Flur …")}${textarea("Folgen","folgen")}${select("Arzt informiert?","arzt",["ja","nein"])}${textarea("Meldung/Infofluss","meldung","Team/Angehörige informiert …")}`,
     onSubmit: data => addDocTo(cfg.sturzPath, data)
   }));
+
+  // Wunde
   container.appendChild(listFormCard({
     title:"Wundbericht",
     list: STOREFromPath(cfg.wundePath),
     renderLine: w => `<strong>${w.person}</strong> — Art: ${w.art||"—"} • Stadium: ${w.stadium||"—"} • Größe: ${w.groesse||"—"} <em>(${w.datum||"—"})</em><br>Versorgung: ${w.versorgung||"—"}`,
-    formHTML: `${select(who,"person",people)}${input("Datum","datum",false,"date",today())}${input("Art","art",false,"text","Dekubitus, Schnitt, …")}${input("Stadium","stadium")}${input("Größe","groesse",false,"text","z. B. 2x3 cm")}${textarea("Versorgung","versorgung")}`,
+    formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Art","art",false,"text","Dekubitus, Schnitt, …")}${input("Stadium","stadium")}${input("Größe","groesse",false,"text","z. B. 2x3 cm")}${textarea("Versorgung","versorgung")}`,
     onSubmit: data => addDocTo(cfg.wundePath, data)
   }));
+
+  // Vitalwerte
   container.appendChild(listFormCard({
     title:"Vitalwerte",
     list: STOREFromPath(cfg.vitPath),
     renderLine: v => `<strong>${v.person}</strong> — ${v.puls||"?"}/min, RR ${v.rr||"?"}, ${v.temp||"?"}°C, SpO₂ ${v.spo2||"?"}% <em>(${v.datum||"—"})</em>`,
-    formHTML: `${select(who,"person",people)}${input("Datum","datum",false,"date",today())}${input("Puls (/min)","puls",false,"number")}${input("RR","rr",false,"text","120/80")}${input("Temp (°C)","temp",false,"number","",{"step":"0.1"})}${input("SpO₂ (%)","spo2",false,"number")}`,
-    onSubmit: data => addDocTo(cfg.vitPath,{...data,puls:data.puls?Number(data.puls):undefined,temp:data.temp?Number(data.temp):undefined,spo2:data.spo2?Number(data.spo2):undefined})
+    formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Puls (/min)","puls",false,"number")}${input("RR","rr",false,"text","120/80")}${input("Temp (°C)","temp",false,"number","",{"step":"0.1"})}${input("SpO₂ (%)","spo2",false,"number")}`,
+    onSubmit: data => addDocTo(cfg.vitPath, {
+      ...data,
+      puls: data.puls?Number(data.puls):undefined,
+      temp: data.temp?Number(data.temp):undefined,
+      spo2: data.spo2?Number(data.spo2):undefined
+    })
   }));
+
+  // Medikamente
   container.appendChild(listFormCard({
     title:"Medikationen",
     list: STOREFromPath(cfg.mediPath),
     renderLine: m => `<strong>${m.person}</strong> — ${m.wirkstoff||"—"} (${m.praeparat||"?"}) • ${m.dosis||"—"} • ${m.form||"—"} • ${m.anwendung||"—"} • Grund: ${m.grund||"—"} <em>(${m.datum||"—"})</em>`,
-    formHTML: `${select(who,"person",people)}${input("Datum","datum",false,"date",today())}${input("Präparat (Herstellername)","praeparat")}${input("Wirkstoff","wirkstoff")}${input("Dosis","dosis",false,"text","z. B. 1-0-1")}${input("Darreichungsform","form",false,"text","Tbl., Kps., Saft …")}${input("Anwendungsform","anwendung",false,"text","p.o., i.v., s.c.…")}${input("Grund der Anwendung","grund")}`,
+    formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Präparat (Herstellername)","praeparat")}${input("Wirkstoff","wirkstoff")}${input("Dosis","dosis",false,"text","z. B. 1-0-1")}${input("Darreichungsform","form",false,"text","Tbl., Kps., Saft …")}${input("Anwendungsform","anwendung",false,"text","p.o., i.v., s.c.…")}${input("Grund der Anwendung","grund")}`,
     onSubmit: data => addDocTo(cfg.mediPath, data)
   }));
+
+  // Flüssigkeit
   container.appendChild(listFormCard({
     title:"Flüssigkeitsbilanz",
     list: STOREFromPath(cfg.flPath),
     renderLine: f => `<strong>${f.person}</strong> — Ein: ${f.ein||0} ml • Aus: ${f.aus||0} ml • Bilanz: ${(Number(f.ein||0)-Number(f.aus||0))} ml <em>(${f.datum||"—"})</em>`,
-    formHTML: `${select(who,"person",people)}${input("Datum","datum",false,"date",today())}${input("Einfuhr (ml)","ein",false,"number")}${input("Ausfuhr (ml)","aus",false,"number")}${textarea("Bemerkung","bem")}`,
-    onSubmit: data => addDocTo(cfg.flPath,{...data,ein:data.ein?Number(data.ein):0,aus:data.aus?Number(data.aus):0})
+    formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Einfuhr (ml)","ein",false,"number")}${input("Ausfuhr (ml)","aus",false,"number")}${textarea("Bemerkung","bem")}`,
+    onSubmit: data => addDocTo(cfg.flPath, { ...data, ein: data.ein?Number(data.ein):0, aus: data.aus?Number(data.aus):0 })
   }));
+
+  // Lagerung
   container.appendChild(listFormCard({
     title:"Lagerung / Mobilisation",
     list: STOREFromPath(cfg.lagPath),
     renderLine: l => `<strong>${l.person}</strong> — Art: ${l.art||"—"} • Dauer: ${l.dauer||"—"} • Hilfsmittel: ${l.hilfsmittel||"—"} <em>(${l.datum||"—"})</em>`,
-    formHTML: `${select(who,"person",people)}${input("Datum","datum",false,"date",today())}${input("Art","art",false,"text","30°-Seitenlage, Mikrolagerung …")}${input("Dauer","dauer",false,"text","z. B. 30 Min.")}${input("Hilfsmittel","hilfsmittel",false,"text","Kissen, Lagerungsrolle …")}${textarea("Bemerkung","bem")}`,
+    formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Art","art",false,"text","30°-Seitenlage, Mikrolagerung …")}${input("Dauer","dauer",false,"text","z. B. 30 Min.")}${input("Hilfsmittel","hilfsmittel",false,"text","Kissen, Lagerungsrolle …")}${textarea("Bemerkung","bem")}`,
     onSubmit: data => addDocTo(cfg.lagPath, data)
   }));
+
+  // Schmerz
   container.appendChild(listFormCard({
     title:"Schmerzbeobachtung",
     list: STOREFromPath(cfg.schPath),
     renderLine: s => `<strong>${s.person}</strong> — Skala: ${s.skala??"?"}/10 • Lokalisation: ${s.lokal||"—"} • Maßnahme: ${s.massnahme||"—"} <em>(${s.datum||"—"})</em>`,
-    formHTML: `${select(who,"person",people)}${input("Datum","datum",false,"date",today())}${input("Schmerzskala (0-10)","skala",false,"number")}${input("Lokalisation","lokal")}${textarea("Maßnahme/Wirksamkeit","massnahme")}`,
-    onSubmit: data => addDocTo(cfg.schPath,{...data,skala:data.skala?Number(data.skala):undefined})
+    formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Schmerzskala (0-10)","skala",false,"number")}${input("Lokalisation","lokal")}${textarea("Maßnahme/Wirksamkeit","massnahme")}`,
+    onSubmit: data => addDocTo(cfg.schPath, { ...data, skala: data.skala?Number(data.skala):undefined })
   }));
 }
+
+/* Store-Auswahl für Renderer */
 function STOREFromPath(path){
   switch(path){
     case COL.pflege_anordnungen: return STORE.pflege.anordnungen;
@@ -600,7 +816,7 @@ function exportAllJSON(){
   const strip = (arr)=> arr.map(({id,_ts, ...rest})=>rest);
   const out = {
     kita:{kinder:strip(STORE.kita.kinder),beobachtungen:strip(STORE.kita.beobachtungen),anwesenheit:strip(STORE.kita.anwesenheit),eltern:strip(STORE.kita.eltern)},
-    pflege:{bewohner:strip(STORE.pflege.bewohner),anordnungen:strip(STORE.pflege.anordnungen),massnahmen:strip(STORE.pflege.massnahmen),sturz:strip(STORE.pflege.sturz),wunden:strip(STORE.pflege_wunden),vitals:strip(STORE.pflege.vitals),medis:strip(STORE.pflege_medis),fluess:strip(STORE.pflege_fluess),lagerung:strip(STORE.pflege_lagerung),schmerz:strip(STORE.pflege_schmerz)},
+    pflege:{bewohner:strip(STORE.pflege.bewohner),anordnungen:strip(STORE.pflege.anordnungen),massnahmen:strip(STORE.pflege.massnahmen),sturz:strip(STORE.pflege.sturz),wunden:strip(STORE.pflege_wunden),vitals:strip(STORE.pflege_vitals),medis:strip(STORE.pflege_medis),fluess:strip(STORE.pflege_fluess),lagerung:strip(STORE.pflege_lagerung),schmerz:strip(STORE.pflege_schmerz)},
     krankenhaus:{patienten:strip(STORE.krankenhaus.patienten),anordnungen:strip(STORE.krankenhaus.anordnungen),massnahmen:strip(STORE.krankenhaus.massnahmen),sturz:strip(STORE.krankenhaus.sturz),wunden:strip(STORE.krankenhaus.wunden),vitals:strip(STORE.krankenhaus.vitals),medis:strip(STORE.krankenhaus.medis),fluess:strip(STORE.krankenhaus.fluess),lagerung:strip(STORE.krankenhaus.lagerung),schmerz:strip(STORE.krankenhaus.schmerz)},
     ambulant:{klienten:strip(STORE.ambulant.klienten),anordnungen:strip(STORE.ambulant.anordnungen),massnahmen:strip(STORE.ambulant.massnahmen),sturz:strip(STORE.ambulant.sturz),wunden:strip(STORE.ambulant.wunden),vitals:strip(STORE.ambulant.vitals),medis:strip(STORE.ambulant.medis),fluess:strip(STORE.ambulant.fluess),lagerung:strip(STORE.ambulant.lagerung),schmerz:strip(STORE.ambulant.schmerz)},
     ergo:{klienten:strip(STORE.ergo.klienten),einheiten:strip(STORE.ergo.einheiten)},
