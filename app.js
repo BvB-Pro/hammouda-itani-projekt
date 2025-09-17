@@ -197,13 +197,14 @@ async function initRealtime(){
   subscribe(plain(COL.pflege_bewohner), STORE.pflege.bewohner);
   subscribe(ascByDate(COL.pflege_anordnungen), STORE.pflege.anordnungen);
   subscribe(plain(COL.pflege_massnahmen), STORE.pflege.massnahmen);
-  subscribe(ascByDate(COL.pflege_sturz), STORE.pflege_sturz);
-  subscribe(ascByDate(COL.pflege_wunden), STORE.pflege_wunden);
-  subscribe(ascByDate(COL.pflege_vitals), STORE.pflege_vitals);
-  subscribe(ascByDate(COL.pflege_medis), STORE.pflege_medis);
-  subscribe(ascByDate(COL.pflege_fluess), STORE.pflege_fluess);
-  subscribe(ascByDate(COL.pflege_lagerung), STORE.pflege_lagerung);
-  subscribe(ascByDate(COL.pflege_schmerz), STORE.pflege_schmerz);
+ subscribe(ascByDate(COL.pflege_sturz),    STORE.pflege.sturz);
+subscribe(ascByDate(COL.pflege_wunden),   STORE.pflege.wunden);
+subscribe(ascByDate(COL.pflege_vitals),   STORE.pflege.vitals);
+subscribe(ascByDate(COL.pflege_medis),    STORE.pflege.medis);
+subscribe(ascByDate(COL.pflege_fluess),   STORE.pflege.fluess);
+subscribe(ascByDate(COL.pflege_lagerung), STORE.pflege.lagerung);
+subscribe(ascByDate(COL.pflege_schmerz),  STORE.pflege.schmerz);
+
   subscribe(ascByDate(COL.pflege_berichte), STORE.pflege.berichte);
 
   // Krankenhaus
@@ -353,7 +354,8 @@ Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sich
 Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten.`));
 
   // 2) Stiftungsleitung nebeneinander
-  const grid = ce("section",{className:"board-grid", ariaLabel:"Stiftungsleitung"});
+ const grid = ce("section",{className:"board-grid"});
+grid.setAttribute("aria-label","Stiftungsleitung");
   grid.innerHTML = `
     <div class="board-card">
       <h4>Präsident</h4>
@@ -497,7 +499,7 @@ function renderPflege(app){
       flPath: COL.pflege_fluess,
       lagPath: COL.pflege_lagerung,
       schPath: COL.pflege_schmerz,
-      whoLabel: "Bewohner"
+      whoLabel: "Bewohner",
          docPath: COL.pflege_berichte,
 
     });
@@ -532,7 +534,7 @@ function renderKrankenhaus(app){
       flPath: COL.kh_fluess,
       lagPath: COL.kh_lagerung,
       schPath: COL.kh_schmerz,
-      whoLabel: "Patient"
+      whoLabel: "Patient",
       docPath: COL.kh_berichte,
 
     });
@@ -566,7 +568,7 @@ function renderAmbulant(app){
       flPath: COL.amb_fluess,
       lagPath: COL.amb_lagerung,
       schPath: COL.amb_schmerz,
-      whoLabel: "Klient"
+      whoLabel: "Klient",
          docPath: COL.amb_berichte,
 
     });
@@ -855,10 +857,51 @@ function exportAllJSON(){
   const strip = (arr)=> arr.map(({id,_ts, ...rest})=>rest);
   const out = {
     kita:{kinder:strip(STORE.kita.kinder),beobachtungen:strip(STORE.kita.beobachtungen),anwesenheit:strip(STORE.kita.anwesenheit),eltern:strip(STORE.kita.eltern)},
-    pflege:{bewohner:strip(STORE.pflege.bewohner),anordnungen:strip(STORE.pflege.anordnungen),massnahmen:strip(STORE.pflege.massnahmen),sturz:strip(STORE.pflege_sturz),wunden:strip(STORE.pflege_wunden),vitals:strip(STORE.pflege_vitals),medis:strip(STORE.pflege_medis),fluess:strip(STORE.pflege_fluess),lagerung:strip(STORE.pflege_lagerung),schmerz:strip(STORE.pflege_schmerz)},
-    krankenhaus:{patienten:strip(STORE.krankenhaus.patienten),anordnungen:strip(STORE.krankenhaus.anordnungen),massnahmen:strip(STORE.krankenhaus.massnahmen),sturz:strip(STORE.krankenhaus.sturz),wunden:strip(STORE.krankenhaus.wunden),vitals:strip(STORE.krankenhaus.vitals),medis:strip(STORE.krankenhaus.medis),fluess:strip(STORE.krankenhaus.fluess),lagerung:strip(STORE.krankenhaus.lagerung),schmerz:strip(STORE.krankenhaus.schmerz)},
-    ambulant:{klienten:strip(STORE.ambulant.klienten),anordnungen:strip(STORE.ambulant.anordnungen),massnahmen:strip(STORE.ambulant.massnahmen),sturz:strip(STORE.ambulant.sturz),wunden:strip(STORE.ambulant.wunden),vitals:strip(STORE.ambulant.vitals),medis:strip(STORE.ambulant.medis),fluess:strip(STORE.ambulant.fluess),lagerung:strip(STORE.ambulant.lagerung),schmerz:strip(STORE.ambulant.schmerz)},
-    ergo:{klienten:strip(STORE.ergo.klienten),einheiten:strip(STORE.ergo.einheiten)},
+   pflege:{
+  bewohner:strip(STORE.pflege.bewohner),
+  anordnungen:strip(STORE.pflege.anordnungen),
+  massnahmen:strip(STORE.pflege.massnahmen),
+  sturz:strip(STORE.pflege.sturz),
+  wunden:strip(STORE.pflege.wunden),
+  vitals:strip(STORE.pflege.vitals),
+  medis:strip(STORE.pflege.medis),
+  fluess:strip(STORE.pflege.fluess),
+  lagerung:strip(STORE.pflege.lagerung),
+  schmerz:strip(STORE.pflege.schmerz),
+  berichte:strip(STORE.pflege.berichte)
+},
+krankenhaus:{
+  patienten:strip(STORE.krankenhaus.patienten),
+  anordnungen:strip(STORE.krankenhaus.anordnungen),
+  massnahmen:strip(STORE.krankenhaus.massnahmen),
+  sturz:strip(STORE.krankenhaus.sturz),
+  wunden:strip(STORE.krankenhaus.wunden),
+  vitals:strip(STORE.krankenhaus.vitals),
+  medis:strip(STORE.krankenhaus.medis),
+  fluess:strip(STORE.krankenhaus.fluess),
+  lagerung:strip(STORE.krankenhaus.lagerung),
+  schmerz:strip(STORE.krankenhaus.schmerz),
+  berichte:strip(STORE.krankenhaus.berichte)
+},
+ambulant:{
+  klienten:strip(STORE.ambulant.klienten),
+  anordnungen:strip(STORE.ambulant.anordnungen),
+  massnahmen:strip(STORE.ambulant.massnahmen),
+  sturz:strip(STORE.ambulant.sturz),
+  wunden:strip(STORE.ambulant.wunden),
+  vitals:strip(STORE.ambulant.vitals),
+  medis:strip(STORE.ambulant.medis),
+  fluess:strip(STORE.ambulant.fluess),
+  lagerung:strip(STORE.ambulant.lagerung),
+  schmerz:strip(STORE.ambulant.schmerz),
+  berichte:strip(STORE.ambulant.berichte)
+},
+ergo:{
+  klienten:strip(STORE.ergo.klienten),
+  einheiten:strip(STORE.ergo.einheiten),
+  berichte:strip(STORE.ergo.berichte)
+},
+
     apotheke:{kunden:strip(STORE.apotheke.kunden),abgaben:strip(STORE.apotheke.abgaben)},
     kinderarzt:{patienten:strip(STORE.kinderarzt.patienten),besuche:strip(STORE.kinderarzt.besuche),termine:strip(STORE.kinderarzt.termine)}
   };
