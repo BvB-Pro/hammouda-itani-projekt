@@ -1,5 +1,5 @@
 /* =========================================================
-   Hammouda-Itani-Stiftung – style.css (hell, Mega-Dropdown ohne Scroll)
+   Hammouda-Itani-Stiftung – style.css (hell, Unternehmensleiste)
    ========================================================= */
 
 /* ---------- Design Tokens ---------- */
@@ -52,7 +52,7 @@ body{
 .brand-text strong{display:block;font-size:16px;line-height:1.1}
 .brand-text small{color:var(--muted)}
 
-/* ---------- Buttons & Dropdown ---------- */
+/* ---------- Buttons & Dropdown (nur "Mehr") ---------- */
 .nav{display:flex;align-items:center;gap:10px}
 .btn{
   appearance:none; border:1px solid var(--border); background:var(--bg-soft);
@@ -78,30 +78,34 @@ body{
 .dropdown .menu button:hover,.dropdown .menu a:hover{background:rgba(0,0,0,.06)}
 .dropdown .menu .danger{color:var(--danger)}
 
-/* ---------- Mega-Dropdown (ALLE Unternehmen sichtbar, kein Scroll) ---------- */
-.dropdown.mega{ --menu-w: min(92vw, 980px); }
-.dropdown.mega .menu.grid{
-  width: var(--menu-w);
-  /* Wichtig: Menü ist standardmäßig ZU; kein Grid setzen solange nicht .open */
-  max-height: none;
-  overflow: visible;
+/* ---------- Unternehmens-Leiste (statt Dropdown) ---------- */
+.company-bar{
+  position:sticky; top:64px; z-index:39;
+  background:linear-gradient(180deg, rgba(255,255,255,.85), rgba(255,255,255,.65));
+  backdrop-filter: blur(8px);
+  border-bottom:1px solid var(--border);
 }
-/* Nur wenn geöffnet -> als Grid rendern (zeigt alles, ohne Scroll) */
-.dropdown.mega.open .menu.grid{
-  display: grid;
-  grid-template-columns: repeat(3, minmax(220px, 1fr));
-  gap: 10px;
+.company-tabs{
+  margin:0; padding:8px clamp(14px,4vw,36px) 10px;
+  display:flex; flex-wrap:wrap; gap:8px;
 }
-@media (max-width: 960px){
-  .dropdown.mega.open .menu.grid{ grid-template-columns: repeat(2, minmax(220px,1fr)); }
+.tab{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:.45rem .7rem;
+  border:1px solid var(--border);
+  border-radius:999px;
+  background:rgba(255,255,255,.7);
+  cursor:pointer; user-select:none;
+  text-decoration:none; color:var(--text); font-weight:600; font-size:.95rem;
+  transition:transform .06s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
 }
-@media (max-width: 620px){
-  .dropdown.mega.open .menu.grid{ grid-template-columns: 1fr; }
+.tab:hover{ transform:translateY(-1px); box-shadow:var(--shadow); }
+.tab:active{ transform:translateY(0); }
+.tab .dot{width:8px;height:8px;border-radius:999px;background:linear-gradient(135deg,var(--accent),var(--accent-2))}
+.tab.active{
+  color:#fff; border-color:transparent;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
 }
-.kachel{display:flex; gap:10px; align-items:flex-start; background:rgba(255,255,255,.6);
-  padding:.7rem; border-radius:12px; border:1px solid var(--border)}
-.kachel .icon{width:32px; height:32px; border-radius:8px; display:grid; place-items:center; color:#fff;
-  background:linear-gradient(135deg,var(--accent),var(--accent-2))}
 
 /* ---------- Hero & Cards ---------- */
 .hero-visual{padding:18px clamp(14px,4vw,36px) 0}
@@ -135,7 +139,6 @@ body{
 .board-card a{color:var(--accent); text-decoration:none}
 .board-card a:hover{text-decoration:underline}
 
-.board-inline{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px}
 .badge{display:inline-block; padding:.18rem .5rem; border-radius:999px; font-size:12px; font-weight:700; color:#fff;
   background:linear-gradient(135deg,var(--accent),var(--accent-2))}
 
@@ -199,13 +202,14 @@ td a:hover{text-decoration:underline}
 
 /* ---------- Hover ---------- */
 @media (hover:hover){
-  .card,.board-card,.kachel{transition:transform .15s ease, box-shadow .2s ease}
-  .card:hover,.board-card:hover,.kachel:hover{transform:translateY(-1px); box-shadow:var(--shadow)}
+  .card,.board-card,.tab{transition:transform .15s ease, box-shadow .2s ease}
+  .card:hover,.board-card:hover,.tab:hover{transform:translateY(-1px); box-shadow:var(--shadow)}
 }
 
 /* ---------- Print ---------- */
 @media print{
-  .paintbar,.app-header,#printBtn{display:none !important}
+  .paintbar,.app-header,.company-bar,#printBtn{display:none !important}
   .card,.board-card{box-shadow:none; background:#fff; border-color:#ddd}
   body{background:#fff; color:#000}
 }
+
