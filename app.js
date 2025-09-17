@@ -20,17 +20,45 @@ const ce = (t, p = {}) => Object.assign(document.createElement(t), p);
 const today = () => new Date().toISOString().slice(0,10);
 
 /* ====== Seiten ====== */
+/* ====== Seiten ====== */
 const PAGES = [
-  { id:"home",          title:"Hammouda-Itani Stiftung",      slogan:"Die Stiftung von uns für uns." },
-  { id:"verwaltung",    title:"Hand in Hand Verwaltung",       slogan:"Zentrale Steuerung für starke Teams." },
-  { id:"kita",          title:"Die drei Löwen Kindergarten",   slogan:"Der Kindergarten für echte Löwen." },
-  { id:"krankenhaus",   title:"Mond-Krankenhaus",              slogan:"Medizin mit Herz – Tag & Nacht." },
-  { id:"pflegeheim",    title:"Pflegeheim der Gemeinschaft",   slogan:"Würde. Nähe. Gemeinschaft." },
-  { id:"ambulant",      title:"Ambulanter Pflegedienst zum Stern", slogan:"Hilfe, die zu Ihnen kommt." },
-  { id:"ergo",          title:"Ergotherapeuten „Unart“",       slogan:"Ungewohnt gut – Therapie neu gedacht." },
-  { id:"apotheke",      title:"Sonnen Apotheke",               slogan:"Die Apotheke mit dem Strahlen." },
-  { id:"kinderarzt",    title:"Lieblings-Kinder",              slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten." },
+  { id:"home",        title:"Hammouda-Itani Stiftung",            slogan:"Die Stiftung von uns für uns." },
+  { id:"verwaltung",  title:"Hand in Hand Verwaltung",            slogan:"Zentrale Steuerung für starke Teams." },
+  { id:"kita",        title:"Die drei Löwen Kindergarten",        slogan:"Der Kindergarten für echte Löwen." },
+  { id:"kinderarzt",  title:"Lieblings-Kinder",                    slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten." },
+  { id:"krankenhaus", title:"Mond-Krankenhaus",                    slogan:"Medizin mit Herz – Tag & Nacht." },
+  { id:"pflegeheim",  title:"Pflegeheim der Gemeinschaft",         slogan:"Würde. Nähe. Gemeinschaft." },
+  { id:"ambulant",    title:"Ambulanter Pflegedienst zum Stern",   slogan:"Hilfe, die zu Ihnen kommt." },
+  { id:"ergo",        title:"Ergotherapeuten „Unart“",             slogan:"Ungewohnt gut – Therapie neu gedacht." },
+  { id:"apotheke",    title:"Sonnen Apotheke",                     slogan:"Die Apotheke mit dem Strahlen." },
 ];
+
+/* ====== Dropdown / Navigation (neu) ====== */
+function buildCompanyMenu(){
+  const menu = qs("#companyMenu"); if (!menu) return;
+  menu.innerHTML = "";
+
+  // Stiftung immer zuerst, danach alle anderen in der definierten Reihenfolge
+  const ordered = [ "home", ...PAGES.filter(p=>p.id!=="home").map(p=>p.id) ];
+  ordered.forEach(pid=>{
+    const p = PAGES.find(x=>x.id===pid);
+    const a = ce("a",{href:"#", className:"kachel", role:"menuitem"});
+    a.innerHTML = `
+      <div class="icon">★</div>
+      <div>
+        <strong>${p.title}</strong>
+        <div class="muted">${p.slogan}</div>
+      </div>`;
+    a.addEventListener("click",(ev)=>{
+      ev.preventDefault();
+      switchTo(p.id);
+      qs("#companyDropdown")?.classList.remove("open");
+      qs("#companyBtn")?.setAttribute("aria-expanded","false");
+    });
+    menu.appendChild(a);
+  });
+}
+
 
 /* ====== UI-State ====== */
 const UI_KEY = "stiftung-ui-v2";
