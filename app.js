@@ -70,6 +70,7 @@ const COL = {
   pflege_fluess: base("pflege_fluess"),
   pflege_lagerung: base("pflege_lagerung"),
   pflege_schmerz: base("pflege_schmerz"),
+  pflege_berichte: base("pflege_berichte"),
   // Krankenhaus
   kh_patienten: base("kh_patienten"),
   kh_anordnungen: base("kh_anordnungen"),
@@ -81,6 +82,7 @@ const COL = {
   kh_fluess: base("kh_fluess"),
   kh_lagerung: base("kh_lagerung"),
   kh_schmerz: base("kh_schmerz"),
+   kh_berichte: base("kh_berichte"),
   // Ambulant
   amb_klienten: base("amb_klienten"),
   amb_anordnungen: base("amb_anordnungen"),
@@ -92,9 +94,11 @@ const COL = {
   amb_fluess: base("amb_fluess"),
   amb_lagerung: base("amb_lagerung"),
   amb_schmerz: base("amb_schmerz"),
+     amb_berichte: base("amb_berichte"),
   // Ergo
   ergo_klienten: base("ergo_klienten"),
   ergo_einheiten: base("ergo_einheiten"),
+     ergo_berichte: base("ergo_berichte"),
   // Apotheke
   apo_kunden: base("apo_kunden"),
   apo_abgaben: base("apo_abgaben"),
@@ -107,10 +111,10 @@ const COL = {
 /* ====== Store ====== */
 const STORE = {
   kita:{kinder:[],beobachtungen:[],anwesenheit:[],eltern:[]},
-  pflege:{bewohner:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[]},
-  krankenhaus:{patienten:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[]},
-  ambulant:{klienten:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[]},
-  ergo:{klienten:[],einheiten:[]},
+  pflege:{bewohner:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[],berichte:[]},
+  krankenhaus:{patienten:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[], berichte:[]},
+  ambulant:{klienten:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[], berichte:[]},
+  ergo:{klienten:[],einheiten:[], berichte:[]},
   apotheke:{kunden:[],abgaben:[]},
   kinderarzt:{patienten:[],besuche:[],termine:[]},
 };
@@ -200,6 +204,7 @@ async function initRealtime(){
   subscribe(ascByDate(COL.pflege_fluess), STORE.pflege_fluess);
   subscribe(ascByDate(COL.pflege_lagerung), STORE.pflege_lagerung);
   subscribe(ascByDate(COL.pflege_schmerz), STORE.pflege_schmerz);
+  subscribe(ascByDate(COL.pflege_berichte), STORE.pflege.berichte);
 
   // Krankenhaus
   subscribe(plain(COL.kh_patienten), STORE.krankenhaus.patienten);
@@ -212,6 +217,7 @@ async function initRealtime(){
   subscribe(ascByDate(COL.kh_fluess), STORE.krankenhaus.fluess);
   subscribe(ascByDate(COL.kh_lagerung), STORE.krankenhaus.lagerung);
   subscribe(ascByDate(COL.kh_schmerz), STORE.krankenhaus.schmerz);
+    subscribe(ascByDate(COL.kh_berichte), STORE.krankenhaus.berichte);
 
   // Ambulant
   subscribe(plain(COL.amb_klienten), STORE.ambulant.klienten);
@@ -224,10 +230,12 @@ async function initRealtime(){
   subscribe(ascByDate(COL.amb_fluess), STORE.ambulant.fluess);
   subscribe(ascByDate(COL.amb_lagerung), STORE.ambulant.lagerung);
   subscribe(ascByDate(COL.amb_schmerz), STORE.ambulant.schmerz);
+     subscribe(ascByDate(COL.amb_berichte), STORE.ambulant.berichte);
 
   // Ergo
   subscribe(plain(COL.ergo_klienten), STORE.ergo.klienten);
   subscribe(ascByDate(COL.ergo_einheiten), STORE.ergo.einheiten);
+     subscribe(ascByDate(COL.ergo_berichte), STORE.ergo.berichte);
 
   // Apotheke
   subscribe(plain(COL.apo_kunden), STORE.apotheke.kunden);
@@ -490,6 +498,8 @@ function renderPflege(app){
       lagPath: COL.pflege_lagerung,
       schPath: COL.pflege_schmerz,
       whoLabel: "Bewohner"
+         docPath: COL.pflege_berichte,
+
     });
   }));
 }
@@ -523,6 +533,8 @@ function renderKrankenhaus(app){
       lagPath: COL.kh_lagerung,
       schPath: COL.kh_schmerz,
       whoLabel: "Patient"
+      docPath: COL.kh_berichte,
+
     });
   }));
 }
@@ -555,6 +567,8 @@ function renderAmbulant(app){
       lagPath: COL.amb_lagerung,
       schPath: COL.amb_schmerz,
       whoLabel: "Klient"
+         docPath: COL.amb_berichte,
+
     });
   }));
 }
@@ -587,6 +601,21 @@ function renderErgo(app){
       onSubmit: data => addDocTo(COL.ergo_einheiten, data)
     }));
   }));
+     // Freie Dokumentation / Bericht (Ergo)
+  app.appendChild(collapsibleCard("Dokumentation / Bericht …", (body)=>{
+    body.appendChild(listFormCard({
+      title:"Dokumentation / Bericht",
+      list: STORE.ergo.berichte,
+      renderLine: b => `<strong>${b.person}</strong> — <em>${b.datum || "—"}</em><br>${(b.text || "—")}`,
+      formHTML: `
+        ${select("Klient","person", STORE.ergo.klienten.map(k=>k.name))}
+        ${input("Datum","datum",false,"date",today())}
+        ${textarea("Eintrag (Freitext)","text")}
+      `,
+      onSubmit: data => addDocTo(COL.ergo_berichte, data)
+    }));
+  }));
+
 }
 
 /* ---------- Apotheke ---------- */
@@ -678,6 +707,21 @@ function buildCommonModules(container, cfg){
     formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${textarea("Anordnung","anordnung")}`,
     onSubmit: data => addDocTo(cfg.anordPath, data)
   }));
+   
+  // Freier Dokumentationsbericht / Pflegebericht (optional)
+  if (cfg.docPath) {
+    container.appendChild(listFormCard({
+      title: "Dokumentation / Pflegebericht",
+      list: STOREFromPath(cfg.docPath),
+      renderLine: b => `<strong>${b.person}</strong> — <em>${b.datum || "—"}</em><br>${(b.text || "—")}`,
+      formHTML: `
+        ${select(cfg.whoLabel || "Person", "person", people)}
+        ${input("Datum","datum",false,"date",today())}
+        ${textarea("Eintrag (Freitext)","text")}
+      `,
+      onSubmit: data => addDocTo(cfg.docPath, data)
+    }));
+  }
 
   container.appendChild(listFormCard({
     title:"Maßnahmen (abhakbar)",
@@ -795,7 +839,14 @@ function STOREFromPath(path){
     case COL.ergo_einheiten: return STORE.ergo.einheiten;
 
     case COL.apo_abgaben: return STORE.apotheke.abgaben;
+   
+     case COL.pflege_berichte: return STORE.pflege.berichte;
+    case COL.kh_berichte:     return STORE.krankenhaus.berichte;
+    case COL.amb_berichte:    return STORE.ambulant.berichte;
+    case COL.ergo_berichte:   return STORE.ergo.berichte;
+
   }
+      
   return [];
 }
 
