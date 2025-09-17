@@ -1,5 +1,5 @@
 /* =========================================================
-   Hammouda-Itani-Stiftung – style.css (hell, ohne Dropdown-Scroll)
+   Hammouda-Itani-Stiftung – style.css (hell, Mega-Dropdown ohne Scroll)
    ========================================================= */
 
 /* ---------- Design Tokens ---------- */
@@ -66,7 +66,7 @@ body{
 
 .dropdown{position:relative}
 .dropdown .menu{
-  position:absolute; top:calc(100% + 8px); min-width:240px; padding:10px;
+  position:absolute; top:calc(100% + 8px); left:0; min-width:240px; padding:10px;
   background:var(--card); border:1px solid var(--border); box-shadow:var(--shadow); border-radius:14px;
   display:none; z-index:45;
 }
@@ -78,20 +78,25 @@ body{
 .dropdown .menu button:hover,.dropdown .menu a:hover{background:rgba(0,0,0,.06)}
 .dropdown .menu .danger{color:var(--danger)}
 
-/* Mega-Dropdown: ohne Scroll, alle Unternehmen sichtbar */
-.dropdown.mega{--menu-w:min(92vw, 980px)}
+/* ---------- Mega-Dropdown (ALLE Unternehmen sichtbar, kein Scroll) ---------- */
+.dropdown.mega{ --menu-w: min(92vw, 980px); }
 .dropdown.mega .menu.grid{
-  width:var(--menu-w);
-  /* kein max-height, kein overflow => alles sichtbar */
-  display:grid;
-  grid-template-columns:repeat(3,minmax(220px,1fr));
-  gap:10px;
+  width: var(--menu-w);
+  /* Wichtig: Menü ist standardmäßig ZU; kein Grid setzen solange nicht .open */
+  max-height: none;
+  overflow: visible;
+}
+/* Nur wenn geöffnet -> als Grid rendern (zeigt alles, ohne Scroll) */
+.dropdown.mega.open .menu.grid{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 10px;
 }
 @media (max-width: 960px){
-  .dropdown.mega .menu.grid{grid-template-columns:repeat(2,minmax(220px,1fr))}
+  .dropdown.mega.open .menu.grid{ grid-template-columns: repeat(2, minmax(220px,1fr)); }
 }
 @media (max-width: 620px){
-  .dropdown.mega .menu.grid{grid-template-columns:1fr}
+  .dropdown.mega.open .menu.grid{ grid-template-columns: 1fr; }
 }
 .kachel{display:flex; gap:10px; align-items:flex-start; background:rgba(255,255,255,.6);
   padding:.7rem; border-radius:12px; border:1px solid var(--border)}
