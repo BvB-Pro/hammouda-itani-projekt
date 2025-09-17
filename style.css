@@ -1,5 +1,5 @@
 /* =========================================================
-   Hammouda-Itani-Stiftung – style.css (v4 + Add-ons, hell)
+   Hammouda-Itani-Stiftung – style.css (hell, ohne Dropdown-Scroll)
    ========================================================= */
 
 /* ---------- Design Tokens ---------- */
@@ -78,10 +78,20 @@ body{
 .dropdown .menu button:hover,.dropdown .menu a:hover{background:rgba(0,0,0,.06)}
 .dropdown .menu .danger{color:var(--danger)}
 
-.dropdown.mega{--menu-w:min(86vw,680px)}
-.dropdown.mega .menu.grid{width:var(--menu-w); max-height:70vh; overflow:auto}
-.dropdown.mega.open .menu.grid{
-  display:grid; grid-template-columns:repeat(2,minmax(220px,1fr)); gap:10px;
+/* Mega-Dropdown: ohne Scroll, alle Unternehmen sichtbar */
+.dropdown.mega{--menu-w:min(92vw, 980px)}
+.dropdown.mega .menu.grid{
+  width:var(--menu-w);
+  /* kein max-height, kein overflow => alles sichtbar */
+  display:grid;
+  grid-template-columns:repeat(3,minmax(220px,1fr));
+  gap:10px;
+}
+@media (max-width: 960px){
+  .dropdown.mega .menu.grid{grid-template-columns:repeat(2,minmax(220px,1fr))}
+}
+@media (max-width: 620px){
+  .dropdown.mega .menu.grid{grid-template-columns:1fr}
 }
 .kachel{display:flex; gap:10px; align-items:flex-start; background:rgba(255,255,255,.6);
   padding:.7rem; border-radius:12px; border:1px solid var(--border)}
@@ -119,11 +129,12 @@ body{
 .board-card .name{font-weight:700; margin-bottom:6px}
 .board-card a{color:var(--accent); text-decoration:none}
 .board-card a:hover{text-decoration:underline}
+
 .board-inline{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px}
 .badge{display:inline-block; padding:.18rem .5rem; border-radius:999px; font-size:12px; font-weight:700; color:#fff;
   background:linear-gradient(135deg,var(--accent),var(--accent-2))}
 
-/* ---------- Toolbar / Forms (aus v4) ---------- */
+/* ---------- Toolbar / Forms ---------- */
 .toolbar{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
 label{display:block; margin:8px 0; font-weight:600; color:var(--text)}
 input,select,textarea{
@@ -142,15 +153,17 @@ textarea{min-height:110px; resize:vertical}
 .panel.show{display:block}
 .btn.active{color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent-2)); border-color:transparent; box-shadow:var(--shadow)}
 
+/* ---------- Tabellen / Leadership-Unterseiten ---------- */
+.container{max-width:1000px; margin:16px auto; padding:0 clamp(14px,4vw,36px)}
+.table-wrap{margin:12px clamp(14px,4vw,36px)}
+table{width:100%; border-collapse:collapse}
+th,td{border:1px solid var(--border); padding:.6rem .7rem; text-align:left; vertical-align:top; color:var(--text)}
+th{background:color-mix(in oklab,var(--card),black 4%); color:var(--muted); font-weight:600}
+td a{color:var(--accent); text-decoration:none}
+td a:hover{text-decoration:underline}
+
 /* ---------- Footer ---------- */
 .app-footer{color:var(--muted); text-align:center; padding:24px 16px 36px}
-
-/* ---------- Print ---------- */
-@media print{
-  .paintbar,.app-header,#printBtn{display:none !important}
-  .card,.board-card{box-shadow:none; background:#fff; border-color:#ddd}
-  body{background:#fff; color:#000}
-}
 
 /* ---------- Fokus + Glow ---------- */
 :where(button,a,input,select,textarea):focus-visible{
@@ -179,22 +192,15 @@ textarea{min-height:110px; resize:vertical}
 .blob.b3{width:400px; height:400px; top:40%; left:60%; background:#baffc9; animation-delay:12s}
 @keyframes float{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-40px) scale(1.1)}}
 
-/* ---------- Tabellen (für Unterseiten-Leadership & Module) ---------- */
-.container{max-width:1000px; margin:16px auto; padding:0 clamp(14px,4vw,36px)}
-.table-wrap{margin:12px clamp(14px,4vw,36px)}
-table{width:100%; border-collapse:collapse}
-th,td{border:1px solid var(--border); padding:.6rem .7rem; text-align:left; vertical-align:top; color:var(--text)}
-th{background:color-mix(in oklab,var(--card),black 4%); color:var(--muted); font-weight:600}
-td a{color:var(--accent); text-decoration:none}
-td a:hover{text-decoration:underline}
-@media (max-width:760px){
-  .table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch}
-  table{min-width:680px}
-}
-
-/* feiner Hover */
+/* ---------- Hover ---------- */
 @media (hover:hover){
-  .card,.board-card{transition:transform .15s ease, box-shadow .2s ease}
-  .card:hover,.board-card:hover{transform:translateY(-1px); box-shadow:var(--shadow)}
+  .card,.board-card,.kachel{transition:transform .15s ease, box-shadow .2s ease}
+  .card:hover,.board-card:hover,.kachel:hover{transform:translateY(-1px); box-shadow:var(--shadow)}
 }
 
+/* ---------- Print ---------- */
+@media print{
+  .paintbar,.app-header,#printBtn{display:none !important}
+  .card,.board-card{box-shadow:none; background:#fff; border-color:#ddd}
+  body{background:#fff; color:#000}
+}
