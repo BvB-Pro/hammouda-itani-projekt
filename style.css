@@ -315,3 +315,105 @@ textarea{ min-height:110px; resize: vertical; }
   50% { transform: translateY(-40px) scale(1.1); }
 }
 
+/* =========================================================
+   Add-on für Leitung / Krabblerstraße / Vorstand (kompatibel zu v4)
+   -> bitte ANS ENDE der bestehenden v4 style.css einfügen
+   ========================================================= */
+
+/* Layout-Container für die neue statische Seite */
+.container{
+  max-width: 1000px;
+  margin: 16px auto;
+  padding: 0 clamp(14px, 4vw, 36px);
+}
+
+/* „Panel“ optisch wie eine Card (sichtbar, nicht collapsible) */
+.panel{
+  display:block;                 /* v4 setzte .panel standardmäßig auf display:none */
+  margin: 12px 0;
+  padding: clamp(14px, 2.4vw, 22px);
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(var(--blur));
+}
+.panel-title{
+  margin:0 0 10px 0;
+  font-size: 18px;
+}
+
+/* einfache Liste (Leadership-Namen, falls ohne Tabelle genutzt) */
+.list{ margin:.25rem 0 0; padding-left:1.1rem; }
+.list li{ margin:.25rem 0; color: var(--text); }
+
+/* Tabellen-Styling für Leitung & Vorstand */
+table{ width:100%; border-collapse: collapse; margin-top:.5rem; }
+th, td{
+  border: 1px solid var(--border);
+  padding: .6rem .7rem;
+  text-align: left;
+  vertical-align: top;
+  color: var(--text);
+}
+th{
+  background: color-mix(in oklab, var(--card), black 4%);
+  color: var(--muted);
+  font-weight: 600;
+}
+:root.dark th{
+  background: color-mix(in oklab, var(--card), white 6%);
+}
+td a{ color: var(--accent); text-decoration: none; }
+td a:hover{ text-decoration: underline; }
+
+/* Foundation-Hinweis (Krabblerstraße) – Fließtext etwas luftiger */
+#foundationNote p{
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* Generelle E-Mailzeilen unter der Tabelle */
+.foundation-email{
+  margin-top: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.foundation-email a{
+  color: var(--accent);
+  text-decoration: none;
+}
+.foundation-email a:hover{ text-decoration: underline; }
+
+/* Footer-Klasse mappen (dein HTML nutzt .footer, v4 hatte .app-footer) */
+.footer{
+  color: var(--muted);
+  text-align: center;
+  padding: 24px 16px 36px;
+  border-top: 1px solid var(--border);
+}
+
+/* Mobile-Optimierung: Tabellen werden horizontal scrollbar statt „gestapelt“,
+   damit du keine data-labels pflegen musst. */
+@media (max-width: 760px){
+  table{
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  th, td{ border-left: none; border-right: none; }
+  tr:first-child th:first-child{ border-top-left-radius: 10px; }
+  tr:first-child th:last-child{ border-top-right-radius: 10px; }
+  tr:last-child td:first-child{ border-bottom-left-radius: 10px; }
+  tr:last-child td:last-child{ border-bottom-right-radius: 10px; }
+}
+
+/* feiner Hover für Panels (wie v4 Cards) */
+@media (hover:hover){
+  .panel{ transition: transform .15s ease, box-shadow .2s ease; }
+  .panel:hover{ transform: translateY(-1px); box-shadow: var(--shadow); }
+}
