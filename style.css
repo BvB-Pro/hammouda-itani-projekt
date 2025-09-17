@@ -260,3 +260,58 @@ textarea{ min-height:110px; resize: vertical; }
 .contact-card .name{ margin:.25rem 0 .35rem; }
 .contact-card .line span{ opacity:.7; margin-right:.35rem; }
 
+/* Hintergrund */
+.bg {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: -1;
+}
+
+.bg .gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    #fdfbfb 0%,       /* sehr helles Weiß-Grau */
+    #f5f7fa 20%,      /* leicht bläulich */
+    #d7f3ff 50%,      /* Pastell-Blau */
+    #ffe7f0 80%,      /* Pastell-Rosa */
+    #fff7d1 100%      /* Pastell-Gelb */
+  );
+  background-attachment: fixed;
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.45;
+  mix-blend-mode: multiply;
+  animation: float 18s infinite ease-in-out;
+}
+
+.blob.b1 {
+  width: 480px; height: 480px;
+  top: -120px; left: -160px;
+  background: #ffb3ba; /* Pastellrot */
+  animation-delay: 0s;
+}
+.blob.b2 {
+  width: 420px; height: 420px;
+  bottom: -100px; right: -100px;
+  background: #bae1ff; /* Pastellblau */
+  animation-delay: 6s;
+}
+.blob.b3 {
+  width: 400px; height: 400px;
+  top: 40%; left: 60%;
+  background: #baffc9; /* Pastellgrün */
+  animation-delay: 12s;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-40px) scale(1.1); }
+}
+
