@@ -1,4 +1,5 @@
-/* Hammouda-Itani-Stiftung – app.js (Home mit E-Mail-Box; Dropdown ohne Scroll)
+/* Hammouda-Itani-Stiftung – app.js (Tabs statt Dropdown)
+   - Oben: Unternehmens-Leiste (Tabs)
    - Home: Infotext → Stiftungsleitung (Cards) → E-Mail-Box → Krabblerstraße-News
    - Unterseiten: Leadership-Tabelle + Module
 */
@@ -24,42 +25,18 @@ const PAGES = [
 
 /* ====== Leadership (nur Unterseiten) ====== */
 const LEADERSHIP = {
-  krankenhaus: {
-    title: "Leitung Krankenhaus",
-    rows: [{ name:"Samira", role:"Leitung Krankenhaus", phone:"—", mobile:"—", email:"samira@stiftung.de" }]
-  },
-  kita: {
-    title: "Leitung Kindergarten",
-    rows: [{ name:"Amadu", role:"Leitung Kindergarten", phone:"—", mobile:"—", email:"amadu@stiftung.de" }]
-  },
-  pflegeheim: {
-    title: "Leitung Altenheim / Pflegeheim",
-    rows: [{ name:"Evan", role:"Leitung Altenheim/Pflegeheim", phone:"—", mobile:"—", email:"evan@stiftung.de" }]
-  },
-  ambulant: {
-    title: "Leitung Ambulanter Pflegedienst",
-    rows: [{ name:"Josy", role:"Leitung Ambulante Pflege", phone:"—", mobile:"—", email:"josy@stiftung.de" }]
-  },
-  apotheke: {
-    title: "Leitung Apotheke",
-    rows: [{ name:"Shams", role:"Leitung Apotheke", phone:"—", mobile:"—", email:"shams@stiftung.de" }]
-  },
-  verwaltung: {
-    title: "Hand in Hand Verwaltung",
-    rows: [
-      { name:"Markus", role:"Lager",     phone:"—", mobile:"—", email:"markus@stiftung.de" },
-      { name:"Ghina",  role:"Personal",  phone:"—", mobile:"—", email:"ghina@stiftung.de" },
-      { name:"Ali",    role:"Marketing", phone:"—", mobile:"—", email:"ali@stiftung.de" },
-    ]
-  },
-  kinderarzt: {
-    title: "Leitung Kinderarzt",
-    rows: [{ name:"Jessica", role:"Leitung Kinderarzt", phone:"—", mobile:"—", email:"jessica@stiftung.de" }]
-  },
-  ergo: {
-    title: "Leitung Ergotherapie",
-    rows: [{ name:"Artika", role:"Leitung Ergotherapie", phone:"—", mobile:"—", email:"artika@stiftung.de" }]
-  }
+  krankenhaus: { title:"Leitung Krankenhaus", rows:[{ name:"Samira", role:"Leitung Krankenhaus", phone:"—", mobile:"—", email:"samira@stiftung.de" }] },
+  kita:        { title:"Leitung Kindergarten", rows:[{ name:"Amadu", role:"Leitung Kindergarten", phone:"—", mobile:"—", email:"amadu@stiftung.de" }] },
+  pflegeheim:  { title:"Leitung Altenheim / Pflegeheim", rows:[{ name:"Evan", role:"Leitung Altenheim/Pflegeheim", phone:"—", mobile:"—", email:"evan@stiftung.de" }] },
+  ambulant:    { title:"Leitung Ambulanter Pflegedienst", rows:[{ name:"Josy", role:"Leitung Ambulante Pflege", phone:"—", mobile:"—", email:"josy@stiftung.de" }] },
+  apotheke:    { title:"Leitung Apotheke", rows:[{ name:"Shams", role:"Leitung Apotheke", phone:"—", mobile:"—", email:"shams@stiftung.de" }] },
+  verwaltung:  { title:"Hand in Hand Verwaltung", rows:[
+    { name:"Markus", role:"Lager",     phone:"—", mobile:"—", email:"markus@stiftung.de" },
+    { name:"Ghina",  role:"Personal",  phone:"—", mobile:"—", email:"ghina@stiftung.de" },
+    { name:"Ali",    role:"Marketing", phone:"—", mobile:"—", email:"ali@stiftung.de" },
+  ]},
+  kinderarzt:  { title:"Leitung Kinderarzt", rows:[{ name:"Jessica", role:"Leitung Kinderarzt", phone:"—", mobile:"—", email:"jessica@stiftung.de" }] },
+  ergo:        { title:"Leitung Ergotherapie", rows:[{ name:"Artika", role:"Leitung Ergotherapie", phone:"—", mobile:"—", email:"artika@stiftung.de" }] }
 };
 
 /* ====== Einstellungen & Helfer ====== */
@@ -67,8 +44,9 @@ const TENANT_ID = "stiftung";
 const qs = (s) => document.querySelector(s);
 const ce = (t, p = {}) => Object.assign(document.createElement(t), p);
 const today = () => new Date().toISOString().slice(0,10);
+const esc = (s="") => String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
-const UI_KEY = "stiftung-ui-v2";
+const UI_KEY = "stiftung-ui-v3";
 function loadUI(){ try{return JSON.parse(localStorage.getItem(UI_KEY))||{lastPage:"home",dark:false}}catch{return{lastPage:"home",dark:false}}}
 function saveUI(patch){ localStorage.setItem(UI_KEY, JSON.stringify({ ...loadUI(), ...patch })); }
 let CURRENT_PAGE = loadUI().lastPage || "home";
@@ -142,9 +120,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const ui = loadUI();
   if (ui.dark === true) document.documentElement.classList.add("dark");
 
-  setupDropdown("companyDropdown","companyBtn","companyMenu");
   setupDropdown("moreDropdown","moreBtn","moreMenu");
-  buildCompanyMenu();
+  buildCompanyTabs();
 
   qs("#printBtn")?.addEventListener("click", () => window.print());
   document.body.addEventListener("click", (e)=>{
@@ -163,25 +140,42 @@ document.addEventListener("DOMContentLoaded", async () => {
   switchTo(CURRENT_PAGE);
 });
 
-/* ====== Dropdown / Navigation ====== */
+/* ====== Unternehmens-Leiste (Tabs) ====== */
+function buildCompanyTabs(){
+  const wrap = qs("#companyTabs"); if (!wrap) return;
+  wrap.innerHTML = "";
+  const ordered = [ "home", ...PAGES.filter(p=>p.id!=="home").map(p=>p.id) ];
+  ordered.forEach(pid=>{
+    const p = PAGES.find(x=>x.id===pid);
+    const a = ce("button",{
+      className:"tab",
+      role:"tab",
+      "aria-selected": (pid===CURRENT_PAGE)?"true":"false",
+      title: p.title
+    });
+    a.innerHTML = `<span class="dot" aria-hidden="true"></span>${p.title}`;
+    if (pid===CURRENT_PAGE) a.classList.add("active");
+    a.addEventListener("click",()=>{ switchTo(pid); updateActiveTabs(); });
+    wrap.appendChild(a);
+  });
+}
+function updateActiveTabs(){
+  const wrap = qs("#companyTabs"); if (!wrap) return;
+  const tabs = [...wrap.querySelectorAll(".tab")];
+  tabs.forEach((t,i)=>{
+    const pid = (i===0) ? "home" : PAGES.filter(p=>p.id!=="home")[i-1].id;
+    t.classList.toggle("active", pid===CURRENT_PAGE);
+    t.setAttribute("aria-selected", pid===CURRENT_PAGE ? "true":"false");
+  });
+}
+
+/* ====== Dropdown (nur „Mehr“) ====== */
 function setupDropdown(wrapperId, buttonId, menuId){
   const wrap = qs("#"+wrapperId), btn=qs("#"+buttonId), menu=qs("#"+menuId);
   const close=()=>{wrap?.classList.remove("open");btn?.setAttribute("aria-expanded","false")};
   btn?.addEventListener("click",(e)=>{ e.stopPropagation(); wrap.classList.toggle("open"); btn.setAttribute("aria-expanded", wrap.classList.contains("open")?"true":"false"); if (wrap.classList.contains("open")) menu?.focus(); });
   document.addEventListener("click",(e)=>{ if (!wrap?.contains(e.target)) close(); });
   document.addEventListener("keydown",(e)=>{ if (e.key==="Escape") close(); });
-}
-function buildCompanyMenu(){
-  const menu = qs("#companyMenu"); if (!menu) return;
-  menu.innerHTML = "";
-  const ordered = [ "home", ...PAGES.filter(p=>p.id!=="home").map(p=>p.id) ];
-  ordered.forEach(pid=>{
-    const p = PAGES.find(x=>x.id===pid);
-    const a = ce("a",{href:"#",className:"kachel",role:"menuitem"});
-    a.innerHTML = `<div class="icon">★</div><div><strong>${p.title}</strong><div class="muted">${p.slogan}</div></div>`;
-    a.addEventListener("click",(ev)=>{ev.preventDefault();switchTo(p.id);qs("#companyDropdown")?.classList.remove("open");qs("#companyBtn")?.setAttribute("aria-expanded","false");});
-    menu.appendChild(a);
-  });
 }
 
 /* ====== Realtime ====== */
@@ -256,7 +250,12 @@ async function addDocTo(path, data){
 }
 
 /* ====== Routing ====== */
-function switchTo(id){ CURRENT_PAGE = id; saveUI({lastPage:id}); render(); }
+function switchTo(id){
+  CURRENT_PAGE = id;
+  saveUI({ lastPage:id });
+  render();
+  updateActiveTabs();
+}
 
 /* ====== Leadership-Bar (nur Unterseiten) ====== */
 function ensureLeadershipPanel(){
@@ -285,7 +284,6 @@ function renderLeadership(pageId){
       <td>${r.email?`<a href="mailto:${esc(r.email)}">${esc(r.email)}</a>`:"—"}</td>
     </tr>`).join("");
 }
-const esc = (s="") => String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
 /* ====== UI-Bausteine ====== */
 function cardInfo(title, text){
