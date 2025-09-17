@@ -29,12 +29,6 @@
     </div>
 
     <nav class="nav">
-      <!-- Unternehmen-Auswahl als Mega-Dropdown -->
-      <div id="companyDropdown" class="dropdown mega">
-        <button id="companyBtn" class="btn" aria-haspopup="true" aria-expanded="false">Unternehmen wählen</button>
-        <div id="companyMenu" class="menu grid" role="menu" aria-label="Unternehmen"></div>
-      </div>
-
       <!-- Weitere Aktionen -->
       <div id="moreDropdown" class="dropdown">
         <button id="moreBtn" class="btn ghost" aria-haspopup="true" aria-expanded="false">Mehr</button>
@@ -44,10 +38,14 @@
           <button data-action="reset" class="danger">Zurücksetzen (Info)</button>
         </div>
       </div>
-
       <button id="printBtn" class="btn ghost" title="Seite drucken">🖨️</button>
     </nav>
   </header>
+
+  <!-- Unternehmens-Leiste (neu, statt Dropdown) -->
+  <nav class="company-bar" aria-label="Unternehmen">
+    <div id="companyTabs" class="company-tabs" role="tablist" aria-label="Unternehmensauswahl"></div>
+  </nav>
 
   <!-- Leadership-Bar (nur auf Unterseiten sichtbar, via JS eingefügt) -->
 
