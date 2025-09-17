@@ -1,122 +1,82 @@
 /* =========================================================
-   Hammouda-Itani-Stiftung – style.css (v3)
-   - Bunter, moderner Hintergrund (Verlauf + Blobs + Paintbar)
-   - Header mit Mega-Dropdown
-   - Kartenlayout, Buttons, Badges
-   - Tabs (Reiter), Personen-Grid, Formulare
+   Hammouda-Itani-Stiftung – style.css (v4)
+   - Dezenter, ruhiger Hintergrund/Look (wie früher)
+   - Header mit Glas-Effekt, Mega-Dropdown (geschlossen bis Klick)
+   - Karten, Buttons, Badges, Formulare
+   - Collapsible/aufklappbare Bereiche (für alle Module)
    - Dark-Mode, Responsive, Print
    ========================================================= */
 
-/* ---------- CSS-Variablen (Design Tokens) ---------- */
+/* ---------- Design Tokens ---------- */
 :root{
-  --bg: #0f1226;                /* Grundhintergrund im Licht */
-  --bg-soft: rgba(255,255,255,.55);
-  --text: #12131a;
-  --muted: #5d6072;
-  --card: rgba(255,255,255,.72);
-  --border: rgba(20,22,37,.08);
-  --accent: #7c4dff;            /* Lila */
-  --accent-2: #ff6ec7;          /* Pink */
-  --accent-3: #00e5ff;          /* Türkis */
-  --ok: #11a36a;
-  --warn: #ffb300;
-  --danger: #e5484d;
-  --shadow: 0 10px 30px rgba(13,18,36,.15);
-  --radius: 18px;
-  --radius-sm: 12px;
-  --radius-lg: 26px;
+  --bg: #f5f7fb;
+  --bg-soft: rgba(255,255,255,.7);
+  --text: #1c2330;
+  --muted: #6b7280;
+  --card: #ffffffcc;
+  --border: rgba(28,35,48,.12);
+  --accent: #4f46e5;     /* ruhiges Indigo */
+  --accent-2: #22c1c3;   /* sanftes Türkis */
+  --ok: #0ea573;
+  --warn: #f59e0b;
+  --danger: #e11d48;
+  --shadow: 0 10px 30px rgba(16,24,40,.12);
+  --radius: 16px;
   --blur: 8px;
 }
 
 :root.dark{
-  --bg: #0a0c14;
+  --bg: #0b0f17;
   --bg-soft: rgba(255,255,255,.06);
-  --text: #e7e8ef;
-  --muted: #a5a8bd;
-  --card: rgba(16,18,28,.68);
+  --text: #e7eaf2;
+  --muted: #a7afc6;
+  --card: rgba(16,20,30,.72);
   --border: rgba(255,255,255,.08);
-  --accent: #9b7dff;
-  --accent-2: #ff86d4;
-  --accent-3: #4de3ff;
-  --shadow: 0 10px 40px rgba(0,0,0,.4);
+  --accent: #6366f1;
+  --accent-2: #38d9e6;
+  --shadow: 0 10px 40px rgba(0,0,0,.36);
 }
 
-/* ---------- Reset/Grundlayout ---------- */
+/* ---------- Reset & Grundlayout ---------- */
 *{ box-sizing: border-box; }
 html,body{ height:100%; }
 body{
   margin:0;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, "Noto Sans", sans-serif;
   color: var(--text);
-  background: radial-gradient(1200px 800px at 10% -10%, #ffe1ff22 0, transparent 50%),
-              radial-gradient(1200px 800px at 110% 10%, #d1f7ff22 0, transparent 50%),
-              #0b0f24;
+  background:
+    radial-gradient(900px 600px at 12% -10%, #a1c4fd2b 0, transparent 55%),
+    radial-gradient(900px 600px at 108% 0%, #22c1c32b 0, transparent 55%),
+    var(--bg);
   overflow-x: hidden;
 }
 
-/* ---------- Bunter Balken oben ---------- */
+/* ---------- dünner Farbbalken oben (dezent) ---------- */
 .paintbar{
-  position: fixed;
-  inset: 0 0 auto 0;
-  height: 6px;
-  background: linear-gradient(90deg,
-      var(--accent),
-      var(--accent-2),
-      var(--accent-3),
-      var(--accent));
+  position: fixed; inset: 0 0 auto 0; height: 4px; z-index: 50;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent));
   background-size: 200% 100%;
-  animation: flow 8s linear infinite;
-  z-index: 50;
+  animation: pb 10s linear infinite;
 }
-@keyframes flow{
-  0%{background-position: 0 0;}
-  100%{background-position: 200% 0;}
-}
-
-/* ---------- Hintergrund-Layer ---------- */
-.bg{ position: fixed; inset:0; z-index:-1; }
-.bg .gradient{
-  position:absolute; inset:0;
-  background: linear-gradient(135deg, rgba(124,77,255,.25), rgba(0,229,255,.2));
-  filter: saturate(120%);
-}
-.blob{
-  position: absolute;
-  width: 42vw; height: 42vw;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity:.35;
-  mix-blend-mode: screen;
-}
-.blob.b1{ left:-10vw; top:-8vw; background: radial-gradient(circle at 30% 30%, #7c4dff66, transparent 60%); animation: float 18s ease-in-out infinite; }
-.blob.b2{ right:-14vw; top:10vh; background: radial-gradient(circle at 70% 30%, #ff6ec766, transparent 60%); animation: float 24s ease-in-out infinite reverse; }
-.blob.b3{ left:20vw; bottom:-18vh; background: radial-gradient(circle at 50% 50%, #00e5ff66, transparent 60%); animation: float 28s ease-in-out infinite; }
-
-@keyframes float{
-  0%{ transform: translate3d(0,0,0) scale(1); }
-  50%{ transform: translate3d(0,-2vh,0) scale(1.05); }
-  100%{ transform: translate3d(0,0,0) scale(1); }
-}
+@keyframes pb{ to{ background-position: 200% 0; }}
 
 /* ---------- Header ---------- */
 .app-header{
   position: sticky; top:0; z-index: 40;
   display:flex; align-items:center; justify-content:space-between;
-  gap:16px; padding: 16px clamp(16px, 4vw, 40px);
+  gap:16px; padding: 12px clamp(14px, 4vw, 36px);
   backdrop-filter: blur(10px);
-  background: linear-gradient(180deg, rgba(255,255,255,.36), rgba(255,255,255,.12));
+  background: linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.18));
   border-bottom: 1px solid var(--border);
 }
 :root.dark .app-header{
-  background: linear-gradient(180deg, rgba(14,16,26,.74), rgba(14,16,26,.38));
+  background: linear-gradient(180deg, rgba(20,24,34,.6), rgba(20,24,34,.3));
 }
 
-.brand{ display:flex; align-items:center; gap:12px; }
+.brand{ display:flex; align-items:center; gap:10px; }
 .logo{
-  width:42px; height:42px; border-radius: 12px;
-  display:grid; place-items:center;
-  font-weight:700; letter-spacing:.5px;
-  color:white;
+  width:38px; height:38px; border-radius: 10px;
+  display:grid; place-items:center; color:#fff; font-weight:700;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   box-shadow: var(--shadow);
 }
@@ -125,32 +85,27 @@ body{
 
 /* ---------- Navigation & Dropdown ---------- */
 .nav{ display:flex; align-items:center; gap:10px; }
+
 .btn{
   appearance:none; border:1px solid var(--border); background: var(--bg-soft);
-  padding:.55rem .9rem; border-radius: 10px; cursor:pointer;
+  padding:.5rem .85rem; border-radius: 10px; cursor:pointer;
   color: var(--text); font-weight: 600;
   transition: transform .06s ease, box-shadow .2s ease, background .2s ease;
   backdrop-filter: blur(6px);
 }
 .btn:hover{ transform: translateY(-1px); box-shadow: var(--shadow); }
 .btn:active{ transform: translateY(0); }
-.btn.primary{
-  border-color: transparent;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: white;
-}
-.btn.big{ padding:.7rem 1.1rem; border-radius: 12px; }
-.btn.ghost{
-  background: transparent; border-color: var(--border);
-}
+.btn.primary{ border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color:#fff; }
+.btn.ghost{ background: transparent; border-color: var(--border); }
 
 .dropdown{ position: relative; }
 .dropdown .menu{
-  position: absolute; top: calc(100% + 8px); left:0;
+  position: absolute; top: calc(100% + 8px);
   min-width: 240px; padding: 10px;
   background: var(--card); border:1px solid var(--border);
   box-shadow: var(--shadow); border-radius: 14px;
-  display:none;
+  display:none; /* standardmäßig zu */
+  z-index: 45;
 }
 .dropdown.open .menu{ display:block; }
 .dropdown .menu button,
@@ -164,36 +119,38 @@ body{
 .dropdown .menu a:hover{ background: rgba(0,0,0,.06); }
 .dropdown .menu .danger{ color: var(--danger); }
 
+.dropdown.mega{ --menu-w: min(86vw, 680px); }
 .dropdown.mega .menu.grid{
-  display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap:10px;
+  width: var(--menu-w);
+  max-height: 70vh; overflow:auto;
+  /* NICHT display:grid; (sonst immer offen) */
+}
+.dropdown.mega.open .menu.grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap:10px;
 }
 .kachel{
   display:flex; gap:10px; align-items:flex-start;
-  background: rgba(255,255,255,.45);
+  background: rgba(255,255,255,.6);
   padding:.7rem; border-radius: 12px; border:1px solid var(--border);
 }
-:root.dark .kachel{ background: rgba(20,22,37,.5); }
+:root.dark .kachel{ background: rgba(24,28,40,.65); }
 .kachel .icon{
-  width:36px; height:36px; border-radius:10px; display:grid; place-items:center; color:white;
+  width:32px; height:32px; border-radius:8px; display:grid; place-items:center; color:#fff;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
 }
 
 /* ---------- Hero ---------- */
-.hero-visual{
-  padding: 28px clamp(16px, 4vw, 40px) 0;
-}
-.hero{
-  padding: 10px clamp(16px, 4vw, 40px) 0;
-}
-.hero .card h1{
-  margin:0 0 4px 0; font-size: clamp(22px, 3.2vw, 30px);
-}
+.hero-visual{ padding: 18px clamp(14px, 4vw, 36px) 0; }
+.hero{ padding: 6px clamp(14px, 4vw, 36px) 0; }
+.hero .card h1{ margin:0 0 4px 0; font-size: clamp(22px, 3vw, 30px); }
 .hero .card p{ margin:0; color: var(--muted); }
 
 /* ---------- Card ---------- */
 .card{
-  margin: 14px clamp(16px, 4vw, 40px);
-  padding: clamp(14px, 2.5vw, 22px);
+  margin: 12px clamp(14px, 4vw, 36px);
+  padding: clamp(14px, 2.4vw, 22px);
   border-radius: var(--radius);
   background: var(--card);
   border: 1px solid var(--border);
@@ -206,31 +163,26 @@ body{
 /* ---------- Badge ---------- */
 .badge{
   display:inline-block; padding:.18rem .5rem;
-  border-radius: 999px; font-size: 12px; font-weight:700;
-  color:white; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-radius: 999px; font-size: 12px; font-weight:700; color:#fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   margin-left: .35rem;
 }
 
 /* ---------- Toolbar ---------- */
-.toolbar{
-  display:flex; gap:8px; flex-wrap: wrap; margin-top: 10px;
-}
+.toolbar{ display:flex; gap:8px; flex-wrap: wrap; margin-top: 10px; }
 
 /* ---------- Formulare ---------- */
-label{
-  display:block; margin: 8px 0;
-  font-weight: 600; color: var(--text);
-}
+label{ display:block; margin: 8px 0; font-weight: 600; color: var(--text); }
 input, select, textarea{
   width:100%; margin-top:6px;
-  background: rgba(255,255,255,.7);
+  background: rgba(255,255,255,.8);
   border:1px solid var(--border);
   border-radius: 10px; padding:.6rem .7rem;
   color: var(--text); outline: none;
   transition: box-shadow .2s ease, border-color .2s ease, background .2s ease;
 }
 :root.dark input, :root.dark select, :root.dark textarea{
-  background: rgba(20,22,37,.6);
+  background: rgba(24,28,40,.7);
 }
 input:focus, select:focus, textarea:focus{
   border-color: color-mix(in oklab, var(--accent), white 10%);
@@ -238,89 +190,59 @@ input:focus, select:focus, textarea:focus{
 }
 textarea{ min-height:110px; resize: vertical; }
 
-/* ---------- Tabs ---------- */
-.tabs{
-  display:flex; gap:.5rem; margin-bottom:.5rem; flex-wrap: wrap;
-}
-.tab{
-  padding:.45rem .8rem; border-radius: 10px; border:1px solid var(--border);
-  background: var(--bg-soft); cursor:pointer; font-weight:600;
-}
-.tab.active{
-  color: white;
+/* ---------- Collapsible / Aufklappbereiche ---------- */
+.panel{ display:none; }
+.panel.show{ display:block; }
+.btn.active{
+  color:#fff;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   border-color: transparent;
   box-shadow: var(--shadow);
 }
-.panel{ display:none; }
-.panel.show{ display:block; }
 
-/* ---------- Personen-Grid ---------- */
-.grid-2{
-  display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
-}
+/* ---------- Personen-Grid & Listen ---------- */
+.grid-2{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
 .person{
   padding:.8rem; border-radius: 14px; border:1px solid var(--border);
-  background: rgba(255,255,255,.55); backdrop-filter: blur(6px);
+  background: rgba(255,255,255,.65); backdrop-filter: blur(6px);
 }
-:root.dark .person{ background: rgba(20,22,37,.6); }
+:root.dark .person{ background: rgba(24,28,40,.65); }
 
 /* ---------- Footer ---------- */
-.app-footer{
-  color: var(--muted);
-  text-align:center; padding: 28px 16px 40px;
-}
+.app-footer{ color: var(--muted); text-align:center; padding: 24px 16px 36px; }
 
 /* ---------- Print ---------- */
 @media print{
-  .paintbar, .bg, .app-header, .hero-visual, .nav, #printBtn{ display:none !important; }
-  .card{ box-shadow:none; background:white; border-color:#ddd; }
-  body{ background:white; color:#000; }
+  .paintbar, .app-header, .hero-visual, #printBtn{ display:none !important; }
+  .card{ box-shadow:none; background:#fff; border-color:#ddd; }
+  body{ background:#fff; color:#000; }
 }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 900px){
-  .dropdown.mega .menu.grid{ grid-template-columns: 1fr; }
+  .dropdown.mega.open .menu.grid{ grid-template-columns: 1fr; }
   .grid-2{ grid-template-columns: 1fr; }
 }
 @media (max-width: 640px){
   .brand-text small{ display:none; }
 }
 
-/* ---------- Fokus & Zugänglichkeit ---------- */
+/* ---------- Fokus ---------- */
 :where(button, a, input, select, textarea):focus-visible{
   outline: 3px solid color-mix(in oklab, var(--accent), transparent 70%);
   outline-offset: 2px;
 }
 
-/* ---------- Hilfsklassen ---------- */
-.muted{ color: var(--muted); }
-
-/* ---------- Extra: kleine „glow“-Kante an Cards ---------- */
-.card{
-  position: relative;
-}
+/* ---------- Kleiner „glow“ an Cards ---------- */
+.card{ position: relative; }
 .card::after{
-  content:"";
-  position:absolute; inset:-1px;
-  border-radius: inherit;
-  pointer-events:none;
-  background:
-    linear-gradient(180deg, transparent, rgba(255,255,255,.12) 10%, transparent 40%) border-box;
-  mask:
-    linear-gradient(#000 0 0) padding-box,
-    linear-gradient(#000 0 0);
+  content:""; position:absolute; inset:-1px; border-radius: inherit; pointer-events:none;
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,.14) 10%, transparent 40%) border-box;
+  mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
   border: 1px solid var(--border);
 }
 
-/* ---------- Mega-Menü Positionierung überlaufen verhindern ---------- */
-.dropdown.mega{ --menu-w: min(86vw, 680px); }
-.dropdown.mega .menu.grid{
-  width: var(--menu-w);
-  max-height: 70vh; overflow:auto;
-}
-
-/* ---------- Kleine Utility für Rechts-oben Print-Button ---------- */
+/* ---------- Utility ---------- */
+.muted{ color: var(--muted); }
 #printBtn{ font-size: 20px; line-height: 1; }
-
