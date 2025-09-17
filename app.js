@@ -19,8 +19,6 @@ const qs = (s) => document.querySelector(s);
 const ce = (t, p = {}) => Object.assign(document.createElement(t), p);
 const today = () => new Date().toISOString().slice(0,10);
 
-/* ====== Seiten ====== */
-/* ====== Seiten ====== */
 const PAGES = [
   { id:"home",        title:"Hammouda-Itani Stiftung",            slogan:"Die Stiftung von uns für uns." },
   { id:"verwaltung",  title:"Hand in Hand Verwaltung",            slogan:"Zentrale Steuerung für starke Teams." },
@@ -32,6 +30,7 @@ const PAGES = [
   { id:"ergo",        title:"Ergotherapeuten „Unart“",             slogan:"Ungewohnt gut – Therapie neu gedacht." },
   { id:"apotheke",    title:"Sonnen Apotheke",                     slogan:"Die Apotheke mit dem Strahlen." },
 ];
+
 
 /* ====== Dropdown / Navigation (neu) ====== */
 function buildCompanyMenu(){
