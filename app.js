@@ -18,7 +18,7 @@ const PAGES = [
   { id:"kinderarzt",  title:"Lieblings-Kinder", slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten.", logo:"assets/logos/Lieblingskinder-logo.PNG" },
   { id:"krankenhaus", title:"Mond-Krankenhaus", slogan:"Medizin mit Herz – Tag & Nacht.", logo:"assets/logos/Mond-Krankenhaus-logo.PNG" },
   { id:"pflegeheim",  title:"Pflegeheim der Gemeinschaft", slogan:"Würde. Nähe. Gemeinschaft.", logo:"assets/logos/Pflegeheim-logo.PNG" },
-  { id:"ambulant",    title:"Ambulanter Pflegedienst zum Stern", slogan:"Hilfe, die zu Ihnen kommt.", logo:"assets/logos/amb-Pflgd-Logo.png" },
+  { id:"ambulant",    title:"Ambulanter Pflegedienst zum Stern", slogan:"Hilfe, die zu Ihnen kommt.", logo:"assets/logos/ambulant-Logo.png" },
   { id:"ergo",        title:"Ergotherapeuten „Unart“", slogan:"Ungewohnt gut – Therapie neu gedacht.", logo:"assets/logos/Unart-logo.PNG" },
   { id:"apotheke",    title:"Sonnen Apotheke", slogan:"Die Apotheke mit dem Strahlen.", logo:"assets/logos/Sonnen-Apotheke-Logo.PNG" },
 ];
