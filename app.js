@@ -18,25 +18,25 @@ const PAGES = [
   { id:"kinderarzt",  title:"Lieblings-Kinder", slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten.", logo:"assets/logos/Lieblingskinder-logo.PNG" },
   { id:"krankenhaus", title:"Mond-Krankenhaus", slogan:"Medizin mit Herz – Tag & Nacht.", logo:"assets/logos/Mond-Krankenhaus-logo.PNG" },
   { id:"pflegeheim",  title:"Pflegeheim der Gemeinschaft", slogan:"Würde. Nähe. Gemeinschaft.", logo:"assets/logos/Pflegeheim-logo.PNG" },
-  { id:"ambulant",    title:"Ambulanter Pflegedienst zum Stern", slogan:"Hilfe, die zu Ihnen kommt.", logo:"assets/logos/amb-Pflgd-Logo.PNG" },
+  { id:"ambulant",    title:"Ambulanter Pflegedienst zum Stern", slogan:"Hilfe, die zu Ihnen kommt.", logo:"assets/logos/amb-Pflgd-Logo.png" },
   { id:"ergo",        title:"Ergotherapeuten „Unart“", slogan:"Ungewohnt gut – Therapie neu gedacht.", logo:"assets/logos/Unart-logo.PNG" },
   { id:"apotheke",    title:"Sonnen Apotheke", slogan:"Die Apotheke mit dem Strahlen.", logo:"assets/logos/Sonnen-Apotheke-Logo.PNG" },
 ];
 
 /* ====== Leadership (nur Unterseiten) ====== */
 const LEADERSHIP = {
-  krankenhaus: { title:"Leitung Krankenhaus", rows:[{ name:"Samira", role:"Leitung Krankenhaus", phone:"—", mobile:"—", email:"samira@stiftung.de" }] },
-  kita:        { title:"Leitung Kindergarten", rows:[{ name:"Amadu", role:"Leitung Kindergarten", phone:"—", mobile:"—", email:"amadu@stiftung.de" }] },
-  pflegeheim:  { title:"Leitung Altenheim / Pflegeheim", rows:[{ name:"Evan", role:"Leitung Altenheim/Pflegeheim", phone:"—", mobile:"—", email:"evan@stiftung.de" }] },
-  ambulant:    { title:"Leitung Ambulanter Pflegedienst", rows:[{ name:"Josy", role:"Leitung Ambulante Pflege", phone:"—", mobile:"—", email:"josy@stiftung.de" }] },
-  apotheke:    { title:"Leitung Apotheke", rows:[{ name:"Shams", role:"Leitung Apotheke", phone:"—", mobile:"—", email:"shams@stiftung.de" }] },
+  krankenhaus: { title:"Leitung Krankenhaus", rows:[{ name:"Samira", role:"Leitung Krankenhaus", phone:"☎ 0201 12 51 74 - 12", mobile:"—", email:"samira@stiftung.de" }] },
+  kita:        { title:"Leitung Kindergarten", rows:[{ name:"Amadu", role:"Leitung Kindergarten", phone:"☎ 0201 12 51 74 - 12", mobile:"—", email:"amadu@stiftung.de" }] },
+  pflegeheim:  { title:"Leitung Altenheim / Pflegeheim", rows:[{ name:"Evan", role:"Leitung Altenheim/Pflegeheim", phone:"☎ 0201 12 51 74 - 12", mobile:"—", email:"evan@stiftung.de" }] },
+  ambulant:    { title:"Leitung Ambulanter Pflegedienst", rows:[{ name:"Josy", role:"Leitung Ambulante Pflege", phone:"☎ 0201 12 51 74 - 12", mobile:"—", email:"josy@stiftung.de" }] },
+  apotheke:    { title:"Leitung Apotheke", rows:[{ name:"Shams", role:"Leitung Apotheke", phone:"☎ 0201 12 51 74 - 12", mobile:"—", email:"shams@stiftung.de" }] },
   verwaltung:  { title:"Hand in Hand Verwaltung", rows:[
-    { name:"Markus", role:"Lager",     phone:"—", mobile:"—", email:"markus@stiftung.de" },
-    { name:"Ghina",  role:"Personal",  phone:"—", mobile:"—", email:"ghina@stiftung.de" },
-    { name:"Ali",    role:"Marketing", phone:"—", mobile:"—", email:"ali@stiftung.de" },
+    { name:"Markus", role:"Lager",     phone:"☎ 0201 12 51 74 - 28", mobile:"—", email:"markus@stiftung.de" },
+    { name:"Ghina",  role:"Personal",  phone:"☎ 0201 12 51 74 - 28", mobile:"—", email:"ghina@stiftung.de" },
+    { name:"Ali",    role:"Marketing", phone:"☎ 0201 12 51 74 - 28", mobile:"—", email:"ali@stiftung.de" },
   ]},
-  kinderarzt:  { title:"Leitung Kinderarzt", rows:[{ name:"Jessica", role:"Leitung Kinderarzt", phone:"—", mobile:"—", email:"jessica@stiftung.de" }] },
-  ergo:        { title:"Leitung Ergotherapie", rows:[{ name:"Artika", role:"Leitung Ergotherapie", phone:"—", mobile:"—", email:"artika@stiftung.de" }] }
+  kinderarzt:  { title:"Leitung Kinderarzt", rows:[{ name:"Jessica", role:"Leitung Kinderarzt", phone:"☎ 0201 12 51 74 - 12", mobile:"—", email:"jessica@stiftung.de" }] },
+  ergo:        { title:"Leitung Ergotherapie", rows:[{ name:"Artika", role:"Leitung Ergotherapie", phone:"☎ 0201 12 51 74 - 12", mobile:"—", email:"artika@stiftung.de" }] }
 };
 
 /* ====== Einstellungen & Helfer ====== */
@@ -383,12 +383,14 @@ grid.setAttribute("aria-label","Stiftungsleitung");
     <div class="board-card">
       <h4>Vorsitzende</h4>
       <div class="name">B. Terhard-Hammouda</div>
-      <div>☎ —</div><div>📱 —</div><div>—</div>
+     <div>☎ 0201 12 51 74 - 28</div>
+     <div><a href="mailto:b.terhard-hammouda@die-boje.de">b.terhard-hammouda@die-boje.de</a></div>
     </div>
     <div class="board-card">
       <h4>Vorsitzender</h4>
       <div class="name">A.R. Itani</div>
-      <div>☎ —</div><div>📱 —</div><div>—</div>
+      <div>☎ 0201 12 51 74 - 12</div>
+     <div><a href="mailto:a.itani@die-boje.de">a.itania@die-boje.de</a></div>
     </div>
     <div class="board-card">
       <h4>Geschäftsführung</h4>
