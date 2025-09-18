@@ -12,15 +12,15 @@ import {
 
 /* ====== Seiten ====== */
 const PAGES = [
-  { id:"home",        title:"Hammouda-Itani Stiftung",            slogan:"Die Stiftung von uns für uns." },
-  { id:"verwaltung",  title:"Hand in Hand Verwaltung",            slogan:"Zentrale Steuerung für starke Teams." },
-  { id:"kita",        title:"Die drei Löwen Kindergarten",        slogan:"Der Kindergarten für echte Löwen." },
-  { id:"kinderarzt",  title:"Lieblings-Kinder",                    slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten." },
-  { id:"krankenhaus", title:"Mond-Krankenhaus",                    slogan:"Medizin mit Herz – Tag & Nacht." },
-  { id:"pflegeheim",  title:"Pflegeheim der Gemeinschaft",         slogan:"Würde. Nähe. Gemeinschaft." },
-  { id:"ambulant",    title:"Ambulanter Pflegedienst zum Stern",   slogan:"Hilfe, die zu Ihnen kommt." },
-  { id:"ergo",        title:"Ergotherapeuten „Unart“",             slogan:"Ungewohnt gut – Therapie neu gedacht." },
-  { id:"apotheke",    title:"Sonnen Apotheke",                     slogan:"Die Apotheke mit dem Strahlen." },
+  { id:"home",        title:"Hammouda-Itani Stiftung",  slogan:"Die Stiftung von uns für uns.", logo:"assets/logos/Hammouda-Itani-Stiftung-Logo.PNG" },
+  { id:"verwaltung",  title:"Hand in Hand Verwaltung",  slogan:"Zentrale Steuerung für starke Teams.", logo:"assets/logos/Hand-in-Hand-Verwaltung-Logo.jpeg" },
+  { id:"kita",        title:"Die drei Löwen Kindergarten", slogan:"Der Kindergarten für echte Löwen.", logo:"assets/logos/Löwen-Kindergarten-logo.PNG" },
+  { id:"kinderarzt",  title:"Lieblings-Kinder", slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten.", logo:"assets/logos/Lieblingskinder-logo.PNG" },
+  { id:"krankenhaus", title:"Mond-Krankenhaus", slogan:"Medizin mit Herz – Tag & Nacht.", logo:"assets/logos/Mond-Krankenhaus-logo.PNG" },
+  { id:"pflegeheim",  title:"Pflegeheim der Gemeinschaft", slogan:"Würde. Nähe. Gemeinschaft.", logo:"assets/logos/Pflegeheim-logo.PNG" },
+  { id:"ambulant",    title:"Ambulanter Pflegedienst zum Stern", slogan:"Hilfe, die zu Ihnen kommt.", logo:"assets/logos/amb-Pflgd-Logo.png" },
+  { id:"ergo",        title:"Ergotherapeuten „Unart“", slogan:"Ungewohnt gut – Therapie neu gedacht.", logo:"assets/logos/Unart-logo.PNG" },
+  { id:"apotheke",    title:"Sonnen Apotheke", slogan:"Die Apotheke mit dem Strahlen.", logo:"assets/logos/Sonnen-Apotheke-Logo.PNG" },
 ];
 
 /* ====== Leadership (nur Unterseiten) ====== */
@@ -335,7 +335,14 @@ function render(){
 
   // Hero
   const hero = qs("#hero");
-  hero.innerHTML = `<div class="card"><h1>${page.title}</h1><p>${page.slogan}</p></div>`;
+hero.innerHTML = `
+  <div class="card hero-card">
+    ${page.logo ? `<img src="${page.logo}" alt="${page.title} Logo" class="hero-logo">` : ""}
+    <div>
+      <h1>${page.title}</h1>
+      <p>${page.slogan}</p>
+    </div>
+  </div>`;
 
   // Page
   const app = qs("#app");
