@@ -390,7 +390,7 @@ grid.setAttribute("aria-label","Stiftungsleitung");
       <h4>Vorsitzender</h4>
       <div class="name">A.R. Itani</div>
       <div>☎ 0201 12 51 74 - 12</div>
-     <div><a href="mailto:a.itani@die-boje.de">a.itania@die-boje.de</a></div>
+     <div><a href="mailto:a.itani@die-boje.de">a.itani@die-boje.de</a></div>
     </div>
     <div class="board-card">
       <h4>Geschäftsführung</h4>
