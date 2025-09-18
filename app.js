@@ -387,7 +387,7 @@ grid.setAttribute("aria-label","Stiftungsleitung");
   mailBox.innerHTML = `
     <h3>Kontakt</h3>
     <p class="muted">Zentrale E-Mail-Adressen:</p>
-    <p><strong>BVB Pro:</strong> <a href="mailto:bvb-pro@die-boje.de">bvb-pro@die-boje.de</a></p>
+    <p><strong>BVB Pro:</strong> <a href="mailto:bvbpro@die-boje.de">bvbpro@die-boje.de</a></p>
     <p><strong>Stiftung:</strong> folgt</p>
   `;
   app.appendChild(mailBox);
