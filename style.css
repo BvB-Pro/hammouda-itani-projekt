@@ -213,3 +213,16 @@ td a:hover{text-decoration:underline}
   body{background:#fff; color:#000}
 }
 
+.hero-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.hero-logo {
+  max-height: 80px;
+  max-width: 120px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #fff;
+  padding: 4px;
+}
