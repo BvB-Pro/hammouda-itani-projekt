@@ -54,6 +54,9 @@ let CURRENT_PAGE = loadUI().lastPage || "home";
 /* ====== Firestore Pfade ====== */
 const base = (name) => `tenants/${TENANT_ID}/${name}`;
 const COL = {
+     // Verwaltung
+  verw_news:   base("verw_news"),
+  verw_orders: base("verw_orders"),
   // Kita
   kita_kinder: base("kita_kinder"),
   kita_beobachtungen: base("kita_beobachtungen"),
@@ -110,6 +113,7 @@ const COL = {
 
 /* ====== Store ====== */
 const STORE = {
+     verwaltung:{ news:[], orders:[] },
   kita:{kinder:[],beobachtungen:[],anwesenheit:[],eltern:[]},
   pflege:{bewohner:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[],berichte:[]},
   krankenhaus:{patienten:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[], berichte:[]},
@@ -192,6 +196,11 @@ async function initRealtime(){
   subscribe(ascByDate(COL.kita_beobachtungen), STORE.kita.beobachtungen);
   subscribe(ascByDate(COL.kita_anwesenheit), STORE.kita.anwesenheit);
   subscribe(ascByDate(COL.kita_eltern), STORE.kita.eltern);
+   
+     // Verwaltung
+  subscribe(ascByDate(COL.verw_news),   STORE.verwaltung.news);
+  subscribe(ascByDate(COL.verw_orders), STORE.verwaltung.orders);
+
 
   // Pflegeheim
   subscribe(plain(COL.pflege_bewohner), STORE.pflege.bewohner);
@@ -409,10 +418,183 @@ grid.setAttribute("aria-label","Stiftungsleitung");
 }
 
 /* ====== Verwaltung ====== */
-function renderVerwaltung(app){
-  app.appendChild(cardInfo("Hinweis",
-    "Zentrale Verwaltung: Hier können später Richtlinien, Checklisten und Vorlagen liegen (Training/Platzhalter)."));
+   function renderVerwaltung(app){
+  // (A) Info-News (erste Nachricht wie gewünscht, zusätzlich Firestore-kompatibel)
+  const newsCard = ce("div",{className:"card"});
+  newsCard.innerHTML = `<h3>Hand-in-Hand Verwaltung – News</h3>`;
+  // feste Start-News
+  const fixed = ce("div");
+  fixed.innerHTML = `
+    <p class="muted"><strong>17.09.2025</strong> Liebe KollegInnen, aktuell arbeiten wir an der digitalen Lohnabrechnung. Hierzu wird in Kürze durch unseren Kaufmann für IT-System-Mananagement Furkan eine Login-Seite für die Mitarbeitenden eingestellt, in der dann personalisierte Informationen und Lohnabrechnungen am Ende des Monats abrufbar sind.</p>
+    <p class="muted">Bitte beachtet auch, dass wir ein neues Bestellformular haben. Tragt hier bitte eure Bestellungen ein, diese werden anschließend von uns bearbeitet. <strong>Wichtig:</strong> Der Ansprechpartner und das Unternehmen müssen immer angegeben werden. Die Artikelnummer ist empfehlenswert, wenn eine vorhanden ist. Ansonsten bitte einen Link anfügen zum entsprechenden Produkt.</p>
+    <p class="muted"><em>Eure Hand-in-Hand Verwaltung</em></p>
+    <hr>
+  `;
+  newsCard.appendChild(fixed);
+
+  // optionale weitere News aus Firestore (COL.verw_news)
+  if (STORE.verwaltung.news.length){
+    STORE.verwaltung.news
+      .slice() // defensiv
+      .sort((a,b)=> (b.datum||"").localeCompare(a.datum||"")) // neueste zuerst
+      .forEach(n=>{
+        const d = ce("div");
+        d.innerHTML = `<p class="muted"><strong>${esc(n.datum||"")}</strong> ${esc(n.text||"")}</p>`;
+        newsCard.appendChild(d);
+      });
+  } else {
+    const hint = ce("p",{className:"muted"});
+    hint.textContent = "Weitere News folgen automatisch, sobald Einträge in Firestore (verw_news) vorhanden sind.";
+    newsCard.appendChild(hint);
+  }
+  app.appendChild(newsCard);
+
+  // (B) Bestellformular (Unternehmen, Ansprechpartner, Positionen-Tabelle)
+  const orderCard = ce("div",{className:"card"});
+  orderCard.innerHTML = `<h3>Bestellung aufgeben</h3>`;
+  const form = ce("form");
+  form.innerHTML = `
+    ${select("Unternehmen","unternehmen", PAGES.filter(p=>p.id!=="home").map(p=>p.title))}
+    ${input("Ansprechpartner*in","ansprechpartner",true)}
+    <div class="table-wrap" style="margin:8px 0 12px 0">
+      <table>
+        <thead><tr>
+          <th style="width:90px">Menge</th>
+          <th>Artikelbeschreibung</th>
+          <th style="width:160px">Artikelnummer</th>
+          <th>Link</th>
+          <th style="width:42px">—</th>
+        </tr></thead>
+        <tbody id="orderItems"></tbody>
+      </table>
+    </div>
+    <div class="toolbar">
+      <button type="button" class="btn" id="addRowBtn">+ Position</button>
+      <button type="submit" class="btn primary">Senden & speichern</button>
+    </div>
+  `;
+  orderCard.appendChild(form);
+  app.appendChild(orderCard);
+
+  const itemsTbody = form.querySelector("#orderItems");
+  const addRow = (pref={})=>{
+    const tr = ce("tr");
+    tr.innerHTML = `
+      <td><input name="menge" type="number" min="1" value="${esc(pref.menge??1)}"></td>
+      <td><input name="beschreibung" type="text" value="${esc(pref.beschreibung||"")}" placeholder="Artikel / Variante"></td>
+      <td><input name="artikelnummer" type="text" value="${esc(pref.artikelnummer||"")}"></td>
+      <td><input name="link" type="url" value="${esc(pref.link||"")}" placeholder="https://…"></td>
+      <td><button type="button" class="btn ghost" title="Zeile entfernen">🗑️</button></td>
+    `;
+    itemsTbody.appendChild(tr);
+  };
+  // mind. eine Startzeile
+  addRow();
+
+  form.querySelector("#addRowBtn").addEventListener("click", ()=> addRow());
+  itemsTbody.addEventListener("click",(e)=>{
+    const btn = e.target.closest("button"); if (!btn) return;
+    const tr = btn.closest("tr"); if (tr && itemsTbody.children.length>1) tr.remove();
+  });
+
+  form.addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(form));
+    // Items aus der Tabelle einsammeln
+    const rows = [...itemsTbody.querySelectorAll("tr")].map(tr=>{
+      const get = (sel)=> tr.querySelector(sel)?.value?.trim() || "";
+      return {
+        menge: Number(get('input[name="menge"]')||1),
+        beschreibung: get('input[name="beschreibung"]'),
+        artikelnummer: get('input[name="artikelnummer"]'),
+        link: get('input[name="link"]')
+      };
+    }).filter(r=> r.beschreibung || r.link || r.artikelnummer);
+
+    if (!data.unternehmen || !data.ansprechpartner || rows.length===0){
+      alert("Bitte Unternehmen, Ansprechpartner*in und mindestens eine Position angeben.");
+      return;
+    }
+
+    const btn = form.querySelector('button[type="submit"]'); const orig=btn.textContent;
+    btn.disabled=true; btn.textContent="Speichere…";
+    try{
+      await addDocTo(COL.verw_orders, {
+        unternehmen: data.unternehmen,
+        ansprechpartner: data.ansprechpartner,
+        datum: today(),
+        items: rows,
+        status: "eingegangen",    // Startstatus
+        orderNumber: ""           // kann später manuell ergänzt werden
+      });
+      form.reset();
+      itemsTbody.innerHTML = "";
+      addRow();
+      alert("Bestellung gespeichert.");
+    }catch(err){
+      alert("Konnte Bestellung nicht speichern: " + (err.message||err));
+    }finally{
+      btn.disabled=false; btn.textContent=orig;
+    }
+  });
+
+  // (C) Bestellübersicht & Bearbeitung (Status, Bestellnummer)
+  const listCard = ce("div",{className:"card"});
+  listCard.innerHTML = `<h3>Bestellungen – Verwaltung</h3>`;
+
+  if (!STORE.verwaltung.orders.length){
+    listCard.appendChild(ce("p",{className:"muted",textContent:"Noch keine Bestellungen vorhanden."}));
+  } else {
+    STORE.verwaltung.orders
+      .slice()
+      .sort((a,b)=> (b.datum||"").localeCompare(a.datum||""))
+      .forEach(o=>{
+        const box = ce("div");
+        const num = o.orderNumber && String(o.orderNumber).trim() ? esc(o.orderNumber) : "— (noch nicht vergeben)";
+        const statusOpts = ["eingegangen","in Bearbeitung","versandt","abgeschlossen"]
+          .map(s=> `<option value="${s}" ${o.status===s?"selected":""}>${s}</option>`).join("");
+        const itemsHTML = (o.items||[]).map(it=>
+          `<li>${esc(it.menge||1)}× ${esc(it.beschreibung||"")} ${it.artikelnummer?`<span class="badge">#${esc(it.artikelnummer)}</span>`:""} ${it.link?`<a href="${esc(it.link)}" target="_blank" rel="noopener">Link</a>`:""}</li>`
+        ).join("");
+
+        box.innerHTML = `
+          <div class="muted" style="margin-bottom:6px">${esc(o.datum||"")}</div>
+          <strong>${esc(o.unternehmen||"-")}</strong> • ${esc(o.ansprechpartner||"-")}
+          <div style="margin:.4rem 0"><ul style="margin:.2rem 0 .4rem 1.2rem">${itemsHTML}</ul></div>
+          <div class="toolbar">
+            <label>Bestellnummer: <input type="text" class="ordernr" value="${o.orderNumber?esc(o.orderNumber):""}" placeholder="z. B. HI-2025-123"></label>
+            <label>Status: 
+              <select class="orderstatus">${statusOpts}</select>
+            </label>
+            <button class="btn primary save-order" data-id="${o.id}">Speichern</button>
+          </div>
+          <hr>
+        `;
+        listCard.appendChild(box);
+      });
+
+    // Delegierter Handler zum Speichern einzelner Bestellungen
+    listCard.addEventListener("click", async (e)=>{
+      const btn = e.target.closest(".save-order"); if (!btn) return;
+      const id = btn.dataset.id;
+      const wrap = btn.closest("div.card > div") || btn.parentElement;
+      const ordernr = wrap.querySelector(".ordernr")?.value?.trim() || "";
+      const status  = wrap.querySelector(".orderstatus")?.value || "eingegangen";
+      const orig = btn.textContent; btn.disabled=true; btn.textContent="Sichere…";
+      try{
+        await updateDoc(doc(db, COL.verw_orders, id), { orderNumber: ordernr, status, _ts: serverTimestamp() });
+        alert("Bestellung aktualisiert.");
+      }catch(err){
+        alert("Konnte Bestellung nicht aktualisieren: " + (err.message||err));
+      }finally{
+        btn.disabled=false; btn.textContent=orig;
+      }
+    });
+  }
+  app.appendChild(listCard);
 }
+
+
 
 /* ---------- Kita ---------- */
 function renderKita(app){
@@ -856,6 +1038,11 @@ function STOREFromPath(path){
 function exportAllJSON(){
   const strip = (arr)=> arr.map(({id,_ts, ...rest})=>rest);
   const out = {
+     verwaltung:{
+  news:   STORE.verwaltung.news.map(({id,_ts,...r})=>r),
+  orders: STORE.verwaltung.orders.map(({id,_ts,...r})=>r)
+},
+
     kita:{kinder:strip(STORE.kita.kinder),beobachtungen:strip(STORE.kita.beobachtungen),anwesenheit:strip(STORE.kita.anwesenheit),eltern:strip(STORE.kita.eltern)},
    pflege:{
   bewohner:strip(STORE.pflege.bewohner),
