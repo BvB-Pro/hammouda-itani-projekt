@@ -1121,6 +1121,7 @@ ergo:{
   const a = ce("a",{href:url,download:"stiftung-export.json"}); document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),300);
 }
+
 // Schutz: Kein Formular darf Seite reloaden
 document.addEventListener("submit",(e)=>{
   e.preventDefault();
