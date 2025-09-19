@@ -318,9 +318,24 @@ function listFormCard({title,list,renderLine,formHTML,onSubmit}){
   const wrap=ce("div",{className:"card"}); wrap.innerHTML=`<h3>${title}</h3>`;
   if (!list?.length){ wrap.appendChild(ce("p",{className:"muted",textContent:"Noch keine Einträge."})); }
   else { list.forEach(item=>{ const d=ce("div"); d.innerHTML=renderLine(item); wrap.appendChild(d); }); }
-  const form=ce("form"); form.innerHTML=formHTML;
-  if (!form.querySelector('button[type="submit"]')){ const bar=ce("div",{className:"toolbar"}); const submit=ce("button",{className:"btn primary",type:"submit",textContent:"Speichern"}); bar.appendChild(submit); form.appendChild(bar); }
-  form.addEventListener("submit",async(e)=>{e.preventDefault(); const data=Object.fromEntries(new FormData(form)); const btn=form.querySelector('button[type="submit"]'); const orig=btn?.textContent; if (btn){btn.disabled=true;btn.textContent="Speichern…"} try{await onSubmit(data); form.reset()}catch(err){alert("Speichern fehlgeschlagen: "+(err.message||err))}finally{if (btn){btn.disabled=false;btn.textContent=orig||"Speichern"}}});
+   const form = ce("form"); 
+form.innerHTML = formHTML;
+
+// 🔒 Sicherstellen, dass IMMER ein Submit-Button existiert
+let submitBtn = form.querySelector('button[type="submit"]');
+if (!submitBtn) {
+  const bar = ce("div",{className:"toolbar"});
+  submitBtn = ce("button",{className:"btn primary",type:"submit",textContent:"Speichern"});
+  bar.appendChild(submitBtn);
+  form.appendChild(bar);
+}
+
+   form.addEventListener("submit",async(e)=>{
+  e.preventDefault();
+  e.stopPropagation();   // 🚫 verhindert, dass Browser doch refresht
+  const data = Object.fromEntries(new FormData(form));
+
+const btn=form.querySelector('button[type="submit"]'); const orig=btn?.textContent; if (btn){btn.disabled=true;btn.textContent="Speichern…"} try{await onSubmit(data); form.reset()}catch(err){alert("Speichern fehlgeschlagen: "+(err.message||err))}finally{if (btn){btn.disabled=false;btn.textContent=orig||"Speichern"}}});
   wrap.appendChild(form); return wrap;
 }
 function collapsibleCard(title, buildBody){ const card=ce("div",{className:"card"}); const btn=ce("button",{className:"btn",textContent:title}); btn.style.marginBottom="6px"; const body=ce("div",{className:"panel"}); btn.addEventListener("click",()=>{ const open=body.classList.toggle("show"); btn.classList.toggle("active",open); if (open && typeof buildBody==="function" && !body._built){ buildBody(body); body._built=true; } }); card.appendChild(btn); card.appendChild(body); return card; }
