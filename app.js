@@ -1122,8 +1122,3 @@ ergo:{
   setTimeout(()=>URL.revokeObjectURL(url),300);
 }
 
-// Schutz: Kein Formular darf Seite reloaden
-document.addEventListener("submit",(e)=>{
-  e.preventDefault();
-  e.stopPropagation();
-}, true);
