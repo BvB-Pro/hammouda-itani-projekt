@@ -243,3 +243,8 @@ td a:hover{text-decoration:underline}
   background: var(--border);
   margin: .8rem 0;
 }
+.doc-author {
+  color: red;
+  font-style: italic;
+  font-weight: 600;   /* etwas hervorgehoben */
+}
