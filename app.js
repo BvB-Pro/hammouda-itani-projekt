@@ -51,6 +51,66 @@ function loadUI(){ try{return JSON.parse(localStorage.getItem(UI_KEY))||{lastPag
 function saveUI(patch){ localStorage.setItem(UI_KEY, JSON.stringify({ ...loadUI(), ...patch })); }
 let CURRENT_PAGE = loadUI().lastPage || "home";
 
+function ensureGalleryStyles(){
+  if (document.getElementById("galleryStyles")) return;
+  const css = `
+  .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+  .gallery-grid .thumb{display:block;border:0;background:none;padding:0;cursor:pointer}
+  .gallery-grid img{width:100%;height:110px;object-fit:cover;border-radius:10px}
+  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:9999}
+  .lightbox.open{display:flex}
+  .lightbox img{max-width:92vw;max-height:86vh;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+  .lb-btn{position:absolute;top:50%;transform:translateY(-50%);border:0;background:rgba(255,255,255,.15);padding:.6rem 1rem;border-radius:12px;cursor:pointer;font-size:1.1rem;color:#fff}
+  .lb-prev{left:20px} .lb-next{right:20px}
+  .lb-close{position:absolute;top:14px;right:14px;border:0;background:rgba(255,255,255,.15);color:#fff;font-size:1rem;padding:.4rem .7rem;border-radius:10px;cursor:pointer}
+  `;
+  const style = ce("style",{id:"galleryStyles",textContent:css});
+  document.head.appendChild(style);
+}
+
+// erzeugt/verwaltet eine einfache Lightbox
+function ensureLightbox(imageList){
+  if (document.getElementById("lightbox")) return;
+  let idx = 0;
+
+  const box = ce("div",{id:"lightbox",className:"lightbox","aria-modal":"true",role:"dialog"});
+  const img = ce("img",{alt:"Foto"});
+  const btnPrev = ce("button",{className:"lb-btn lb-prev",type:"button",innerText:"‹"});
+  const btnNext = ce("button",{className:"lb-btn lb-next",type:"button",innerText:"›"});
+  const btnClose= ce("button",{className:"lb-close",type:"button",innerText:"Schließen"});
+
+  function show(i){
+    idx = (i+imageList.length)%imageList.length;
+    img.src = imageList[idx];
+  }
+  window.openLightbox = function(i=0){
+    show(i);
+    box.classList.add("open");
+    btnClose.focus();
+  };
+  function close(){ box.classList.remove("open"); }
+  function next(){ show(idx+1); }
+  function prev(){ show(idx-1); }
+
+  btnNext.addEventListener("click", next);
+  btnPrev.addEventListener("click, keydown",(e)=>{ if(e.type==="click"||e.key==="Enter"){prev();} });
+  btnPrev.addEventListener("click", prev);
+  btnClose.addEventListener("click", close);
+  box.addEventListener("click",(e)=>{ if(e.target===box) close(); });
+  document.addEventListener("keydown",(e)=>{
+    if(!box.classList.contains("open")) return;
+    if(e.key==="Escape") close();
+    if(e.key==="ArrowRight") next();
+    if(e.key==="ArrowLeft") prev();
+  });
+
+  box.appendChild(img);
+  box.appendChild(btnPrev);
+  box.appendChild(btnNext);
+  box.appendChild(btnClose);
+  document.body.appendChild(box);
+}
+
 /* ====== Firestore Pfade ====== */
 const base = (name) => `tenants/${TENANT_ID}/${name}`;
 const COL = {
@@ -376,6 +436,7 @@ hero.innerHTML = `
 }
 
 /* ====== HOME ====== */
+/* ====== HOME ====== */
 function renderHome(app){
   // 1) Infotext
   app.appendChild(cardInfo("Liebe Kolleginnen und Kollegen,",
@@ -386,8 +447,8 @@ Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sich
 Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten.`));
 
   // 2) Stiftungsleitung nebeneinander
- const grid = ce("section",{className:"board-grid"});
-grid.setAttribute("aria-label","Stiftungsleitung");
+  const grid = ce("section",{className:"board-grid"});
+  grid.setAttribute("aria-label","Stiftungsleitung");
   grid.innerHTML = `
     <div class="board-card">
       <h4>Präsident</h4>
@@ -399,14 +460,14 @@ grid.setAttribute("aria-label","Stiftungsleitung");
     <div class="board-card">
       <h4>Vorsitzende</h4>
       <div class="name">B. Terhard-Hammouda</div>
-     <div>☎ 0201 12 51 74 - 28</div>
-     <div><a href="mailto:b.terhard-hammouda@die-boje.de">b.terhard-hammouda@die-boje.de</a></div>
+      <div>☎ 0201 12 51 74 - 28</div>
+      <div><a href="mailto:b.terhard-hammouda@die-boje.de">b.terhard-hammouda@die-boje.de</a></div>
     </div>
     <div class="board-card">
       <h4>Vorsitzender</h4>
       <div class="name">A.R. Itani</div>
       <div>☎ 0201 12 51 74 - 12</div>
-     <div><a href="mailto:a.itani@die-boje.de">a.itani@die-boje.de</a></div>
+      <div><a href="mailto:a.itani@die-boje.de">a.itani@die-boje.de</a></div>
     </div>
     <div class="board-card">
       <h4>Geschäftsführung</h4>
@@ -416,7 +477,7 @@ grid.setAttribute("aria-label","Stiftungsleitung");
   `;
   app.appendChild(grid);
 
-  // 3) E-Mail-Box (zwischen Leitung und News)
+  // 3) Kontakt-Box
   const mailBox = ce("section",{className:"card"});
   mailBox.innerHTML = `
     <h3>Kontakt</h3>
@@ -426,21 +487,51 @@ grid.setAttribute("aria-label","Stiftungsleitung");
   `;
   app.appendChild(mailBox);
 
-  // 4) Krabblerstraße-News
+  // 4) News-Text (aktualisiert)
   const news = ce("article",{className:"card", id:"foundationNote"});
   news.innerHTML = `
     <h3>News – Krabblerstraße</h3>
     <p>
-      Liebe KollegInnen, am <strong>18.09.2025</strong> treffen wir uns um <strong>10 Uhr</strong> am Standort der
-      Boje in der Elisenstraße. Ab ca. <strong>12:30 Uhr</strong> gibt es ein kleines Mittagessen. Anschließend werden
-      wir uns gemeinsam zu unserem Kooperationspartner, dem <strong>Kindergarten an der Krabblerstr. in Essen-Altenessen</strong>, begeben.
-      Dort werden wir neben dem Oberbürgermeister auch auf den Vorstand der Stiftung und viele spannende Leute treffen.
-      Gemeinsam werden wir bis ca. <strong>18 Uhr</strong> vom Kindergarten lernen, wie wir unsere Unternehmen in Zukunft gestalten können.
-      Wir freuen uns sehr auf euch. <br> <strong>Eure Hammouda-Itani-Stiftung.</strong>
+      Mit großem Erfolg waren wir gemeinsam bei unseren Kooperationspartnern im Kindergarten der
+      <strong>AWO an der Krabblerstraße in Essen</strong>. Neben einem Gespräch mit dem Oberbürgermeister
+      <strong>Thomas Kufen</strong> konnten wir – insbesondere unsere Leitung des Drei-Löwen-Kindergartens
+      <strong>Amadu</strong> – viele wertvolle Eindrücke gewinnen. Wir sind uns sicher, dass dieser Termin
+      dazu beitragen wird, unsere Unternehmen weiter zu verbessern und die Zukunft der Stiftung gemeinsam aufzubauen.
     </p>
   `;
   app.appendChild(news);
+
+  // 5) Fotogalerie + Lightbox
+  const IMAGES = [
+    "assets/fotos/IMG_4348.jpg",
+    "assets/fotos/IMG_4349.jpg",
+    "assets/fotos/IMG_4350.jpg",
+    "assets/fotos/IMG_4351.jpg",
+    "assets/fotos/IMG_4352.jpg",
+    "assets/fotos/IMG_4353.jpg",
+    "assets/fotos/IMG_4361.jpg",
+    "assets/fotos/IMG_4362.jpg",
+    "assets/fotos/IMG_4360.jpg"
+  ];
+
+  // Galerie-Card
+  const gal = ce("section",{className:"card"});
+  gal.innerHTML = `<h3>Impressionen</h3>`;
+  const gridWrap = ce("div",{className:"gallery-grid"});
+  IMAGES.forEach((src, idx)=>{
+    const a = ce("button", { className:"thumb", type:"button", "aria-label":`Foto ${idx+1}` });
+    a.innerHTML = `<img loading="lazy" src="${src}" alt="Foto ${idx+1} – Besuch im Kindergarten Krabblerstraße">`;
+    a.addEventListener("click", ()=> openLightbox(idx));
+    gridWrap.appendChild(a);
+  });
+  gal.appendChild(gridWrap);
+  app.appendChild(gal);
+
+  // Lightbox nur 1× in den <head> / <body> hängen
+  ensureGalleryStyles();
+  ensureLightbox(IMAGES);
 }
+
 
 /* ====== Verwaltung ====== */
    function renderVerwaltung(app){
