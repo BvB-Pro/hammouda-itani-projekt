@@ -170,6 +170,8 @@ const COL = {
   kid_patienten: base("kid_patienten"),
   kid_besuche: base("kid_besuche"),
   kid_termine: base("kid_termine"),
+   // Postfach
+ postfach:        base("postfach"),      // ⬅️ NEU
 };
 
 /* ====== Store ====== */
@@ -182,6 +184,7 @@ const STORE = {
   ergo:{klienten:[],einheiten:[], berichte:[]},
   apotheke:{kunden:[],abgaben:[]},
   kinderarzt:{patienten:[],besuche:[],termine:[]},
+ postfach: [],   
 };
 
 /* ====== Boot ====== */
@@ -218,15 +221,26 @@ loginForm?.addEventListener("submit", async (e) => {
 logoutBtn?.addEventListener("click", async ()=>{ await logout(); });
 
 // Sichtbarkeit von App/Login steuern
+// Sichtbarkeit von App/Login steuern
 function updateAuthUI(){
   const isIn = !!auth.currentUser;
-  document.getElementById("loginCard")?.style && (document.getElementById("loginCard").style.display = isIn ? "none" : "block");
-  document.getElementById("logoutBtn")?.style && (document.getElementById("logoutBtn").style.display = isIn ? "inline-flex" : "none");
-  document.getElementById("hero")?.style && (document.getElementById("hero").style.display = isIn ? "" : "none");
-  document.getElementById("companyTabs")?.style && (document.getElementById("companyTabs").style.display = isIn ? "" : "none");
-  document.getElementById("app")?.style && (document.getElementById("app").style.display = isIn ? "" : "none");
 
-  // 🔽 Benutzeranzeige aktualisieren
+  // Login-Card zeigen/verstecken
+  document.getElementById("loginCard")?.style && (
+    document.getElementById("loginCard").style.display = isIn ? "none" : "block"
+  );
+
+  // Logout-Button nur für Eingeloggte
+  document.getElementById("logoutBtn")?.style && (
+    document.getElementById("logoutBtn").style.display = isIn ? "inline-flex" : "none"
+  );
+
+  // Hero, Tabs, App IMMER anzeigen (Gast darf alles sehen)
+  document.getElementById("hero")?.style && (document.getElementById("hero").style.display = "");
+  document.getElementById("companyTabs")?.style && (document.getElementById("companyTabs").style.display = "");
+  document.getElementById("app")?.style && (document.getElementById("app").style.display = "");
+
+  // Benutzeranzeige (oben in der Kopfzeile, falls Element existiert)
   const ud = document.getElementById("userDisplay");
   if (ud) {
     if (isIn) {
@@ -234,10 +248,11 @@ function updateAuthUI(){
       const name = u.displayName || (u.email ? u.email.split("@")[0] : "Unbekannt");
       ud.textContent = `Benutzer: ${name}`;
     } else {
-      ud.textContent = "";
+      ud.textContent = "Gast";
     }
   }
 }
+
 
   qs("#printBtn")?.addEventListener("click", () => window.print());
   document.body.addEventListener("click", (e)=>{
@@ -376,7 +391,11 @@ subscribe(ascByDate(COL.pflege_schmerz),  STORE.pflege.schmerz);
   subscribe(plain(COL.kid_patienten), STORE.kinderarzt.patienten);
   subscribe(ascByDate(COL.kid_besuche), STORE.kinderarzt.besuche);
   subscribe(ascByDate(COL.kid_termine), STORE.kinderarzt.termine);
+  
+   // Postfach
+  subscribe(ascByDate(COL.postfach), STORE.postfach);   // ⬅️ NEU
 }
+
 function subscribe(refOrQuery, targetArr){
   onSnapshot(refOrQuery, (snap)=>{
     targetArr.length = 0;
@@ -386,17 +405,17 @@ function subscribe(refOrQuery, targetArr){
 }
 async function addDocTo(path, data){
   const u = auth.currentUser;
-  const by = u ? {
+  if (!u) {                       // ⬅️ NEU: Gäste dürfen nicht schreiben
+    throw new Error("Nur mit Login speicherbar (Gastmodus).");
+  }
+  const by = {
     uid: u.uid,
     username: (u.email || "").split("@")[0],
     displayName: u.displayName || (u.email || "").split("@")[0]
-  } : null;
-  return addDoc(collection(db, path), {
-    ...data,
-    _by: by,              // ⬅️ Autorinfos
-    _ts: serverTimestamp()
-  });
+  };
+  return addDoc(collection(db, path), { ...data, _by: by, _ts: serverTimestamp() });
 }
+
 
 
 /* ====== Routing ====== */
@@ -457,6 +476,18 @@ function listFormCard({title,list,renderLine,formHTML,onSubmit}){
   else { list.forEach(item=>{ const d=ce("div"); d.innerHTML=renderLine(item); wrap.appendChild(d); }); }
    const form = ce("form"); 
 form.innerHTML = formHTML || "";
+// 🔒 Nur Lesen für Gäste (kein eingeloggter User)
+const isGuest = !auth?.currentUser;
+if (isGuest) {
+  // Hinweis einblenden
+  const note = ce("p",{className:"muted",textContent:"Gastmodus: Inhalte sind sichtbar, aber Änderungen sind ohne Login nicht möglich."});
+  form.insertBefore(note, form.firstChild);
+
+  // Alle Eingaben & der Submit-Button werden deaktiviert
+  [...form.querySelectorAll('input, select, textarea, button[type="submit"]')].forEach(el=>{
+    if (el) el.disabled = true;
+  });
+}
 
 
 
@@ -565,6 +596,30 @@ Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Mensc
     <p><strong>Stiftung:</strong> folgt</p>
   `;
   app.appendChild(mailBox);
+   // 3b) Postfach (lesen für alle, schreiben nur mit Login)
+const postfachCard = listFormCard({
+  title: "Postfach",
+  list: STORE.postfach.slice().sort((a,b)=> (b.datum||"").localeCompare(a.datum||"")),
+  renderLine: m => `
+    <strong>${esc(m.betreff || "—")}</strong> ${m.empf ? badge("an "+esc(m.empf)) : ""} <em>${esc(m.datum || "—")}</em>${byLine(m)}
+    <br><span class="muted">Von: ${esc(m.absender || "—")}</span>
+    <br>${esc(m.text || "—")}
+  `,
+  formHTML: `
+    ${input("Datum","datum",false,"date",today())}
+    ${input("Betreff","betreff",true)}
+    ${input("Empfänger (Team/Unternehmen)","empf",false,"text","z. B. Verwaltung / Stiftung")}
+    ${textarea("Nachricht","text")}
+  `,
+  onSubmit: data => {
+    // Absender vorbelegen: aktueller User-Name
+    const u = auth.currentUser;
+    const absender = u ? (u.displayName || (u.email||"").split("@")[0]) : "Gast";
+    return addDocTo(COL.postfach, { ...data, absender });
+  }
+});
+app.appendChild(postfachCard);
+
 
   // 4) News-Text (aktualisiert)
   const news = ce("article",{className:"card", id:"foundationNote"});
