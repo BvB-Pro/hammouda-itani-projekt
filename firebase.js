@@ -3,31 +3,31 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/fireba
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import {
-  getFirestore
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// TODO: Deine Config eintragen
+// ⬇️ Hier DEINE echten Werte aus der Console einfügen
 const firebaseConfig = {
-  apiKey: "...",
-  authDomain: "...",
-  projectId: "...",
-  appId: "...",
+  apiKey: "AI...deinKey...",
+  authDomain: "dein-projekt.firebaseapp.com",
+  projectId: "dein-projekt",
+  appId: "1:1234567890:web:abc123def456",
+  // optional je nach Projekt:
+  storageBucket: "dein-projekt.appspot.com",
+  messagingSenderId: "1234567890",
+  measurementId: "G-XXXXXXX"
 };
 
 const app  = initializeApp(firebaseConfig);
 export const db   = getFirestore(app);
 export const auth = getAuth(app);
 
-// ---- Login mit "Benutzername" statt echter E-Mail ----
+// Login-Helfer
 const toEmail = (username) => `${String(username).trim().toLowerCase()}@stiftung.local`;
 
-// Promise, das erfüllt wird, wenn der Auth-Status feststeht
 let _resolveAuthReady;
 export const authReady = new Promise(res => _resolveAuthReady = res);
 
 onAuthStateChanged(auth, (user) => {
-  // Im DOM Bescheid sagen
   document.documentElement.dataset.auth = user ? "in" : "out";
   const badge = document.querySelector("#userBadge");
   if (badge) {
@@ -36,7 +36,6 @@ onAuthStateChanged(auth, (user) => {
   _resolveAuthReady?.(user || null);
 });
 
-// API für app.js
 export async function loginWithUsername(username, password) {
   const email = toEmail(username);
   const cred = await signInWithEmailAndPassword(auth, email, password);
@@ -46,3 +45,4 @@ export function logout(){ return signOut(auth); }
 export async function setDisplayName(name){
   if (auth.currentUser && name) await updateProfile(auth.currentUser, { displayName:name });
 }
+
