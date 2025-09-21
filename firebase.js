@@ -1,29 +1,48 @@
 // firebase.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import {
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import {
+  getFirestore
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
+// TODO: Deine Config eintragen
 const firebaseConfig = {
-  apiKey: "AIzaSyBQNtE_uMdMC1Wb8HnOjyteNIklvd7_eqU",
-  authDomain: "hammouda-itani-stiftung.firebaseapp.com",
-  projectId: "hammouda-itani-stiftung",
-  storageBucket: "hammouda-itani-stiftung.firebasestorage.app",
-  messagingSenderId: "618009078772",
-  appId: "1:618009078772:web:11ad079958edfb9fb627a1",
-  measurementId: "G-5PVQMJR6EK"
+  apiKey: "...",
+  authDomain: "...",
+  projectId: "...",
+  appId: "...",
 };
 
-export const app  = initializeApp(firebaseConfig);
+const app  = initializeApp(firebaseConfig);
 export const db   = getFirestore(app);
 export const auth = getAuth(app);
 
-// anonym einloggen
-signInAnonymously(auth).catch((e)=>console.error("Auth error:", e));
+// ---- Login mit "Benutzername" statt echter E-Mail ----
+const toEmail = (username) => `${String(username).trim().toLowerCase()}@stiftung.local`;
 
-// darauf wartet app.js
-export const authReady = new Promise((resolve) => {
-  onAuthStateChanged(auth, (user) => {
-    console.log("Auth OK, uid:", user?.uid);
-    resolve(user);
-  });
+// Promise, das erfüllt wird, wenn der Auth-Status feststeht
+let _resolveAuthReady;
+export const authReady = new Promise(res => _resolveAuthReady = res);
+
+onAuthStateChanged(auth, (user) => {
+  // Im DOM Bescheid sagen
+  document.documentElement.dataset.auth = user ? "in" : "out";
+  const badge = document.querySelector("#userBadge");
+  if (badge) {
+    badge.textContent = user ? (user.displayName || user.email.split("@")[0]) : "Gast";
+  }
+  _resolveAuthReady?.(user || null);
 });
+
+// API für app.js
+export async function loginWithUsername(username, password) {
+  const email = toEmail(username);
+  const cred = await signInWithEmailAndPassword(auth, email, password);
+  return cred.user;
+}
+export function logout(){ return signOut(auth); }
+export async function setDisplayName(name){
+  if (auth.currentUser && name) await updateProfile(auth.currentUser, { displayName:name });
+}
