@@ -432,10 +432,11 @@ function cardInfo(title, text){
   return d;
 }
 function badge(txt){ return `<span class="badge">${txt}</span>`; }
-  function byLine(obj){
+function byLine(obj){
   const n = obj?._by?.displayName || obj?._by?.username;
-  return n ? ` <span class="badge" title="Erstellt von">${esc(n)}</span>` : "";
+  return n ? ` <span class="doc-author" title="Erstellt von">${esc(n)}</span>` : "";
 }
+
 function input(label,name,required=false,type="text",value="",extraAttrs={}){ const attrs=Object.entries(extraAttrs).map(([k,v])=>`${k}="${v}"`).join(" "); return `<label>${label}<input name="${name}" type="${type}" value="${value||""}" ${required?"required":""} ${attrs}></label>`; }
 function textarea(label,name,value=""){ return `<label>${label}<textarea name="${name}">${value||""}</textarea></label>`; }
 function select(label,name,options=[]){ const opts=options.map(o=>`<option value="${o}">${o}</option>`).join(""); return `<label>${label}<select name="${name}">${opts}</select></label>`; }
