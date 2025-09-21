@@ -6,15 +6,15 @@ import {
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 // ⬇️ Hier DEINE echten Werte aus der Console einfügen
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AI...deinKey...",
-  authDomain: "dein-projekt.firebaseapp.com",
-  projectId: "dein-projekt",
-  appId: "1:1234567890:web:abc123def456",
-  // optional je nach Projekt:
-  storageBucket: "dein-projekt.appspot.com",
-  messagingSenderId: "1234567890",
-  measurementId: "G-XXXXXXX"
+  apiKey: "AIzaSyBQNtE_uMdMC1Wb8HnOjyteNIklvd7_eqU",
+  authDomain: "hammouda-itani-stiftung.firebaseapp.com",
+  projectId: "hammouda-itani-stiftung",
+  storageBucket: "hammouda-itani-stiftung.firebasestorage.app",
+  messagingSenderId: "618009078772",
+  appId: "1:618009078772:web:11ad079958edfb9fb627a1",
+  measurementId: "G-5PVQMJR6EK"
 };
 
 const app  = initializeApp(firebaseConfig);
