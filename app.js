@@ -444,7 +444,7 @@ function listFormCard({title,list,renderLine,formHTML,onSubmit}){
   if (!list?.length){ wrap.appendChild(ce("p",{className:"muted",textContent:"Noch keine Einträge."})); }
   else { list.forEach(item=>{ const d=ce("div"); d.innerHTML=renderLine(item); wrap.appendChild(d); }); }
    const form = ce("form"); 
-form.innerHTML = formHTML;
+form.innerHTML = formHTML || "";
 
 
 
@@ -1169,18 +1169,24 @@ function buildCommonModules(container, cfg){
       onSubmit: data => addDocTo(cfg.docPath, data)
     }));
   }
+   container.appendChild(listFormCard({
+  title:"Maßnahmen (abhakbar)",
+  list: STOREFromPath(cfg.massnPath),
+  renderLine: m => { 
+    const id=m.id, checked=m.done?"checked":"";
+    return `<strong>${m.person}</strong> — ${m.text||"—"} • Fällig: ${m.faellig||"—"}${byLine(m)}
+      <label style="display:inline-flex;align-items:center;gap:.4rem;margin-left:.6rem;">
+        <input type="checkbox" data-doc="${id}" ${checked} class="chk-done"> erledigt
+      </label>`;
+  },
+  formHTML: `
+    ${select(who,"person", people)}
+    ${input("Fällig am","faellig",false,"date",today())}
+    ${input("Maßnahme","text",true,"text","z. B. Mobilisation, RR messen …")}
+  `,
+  onSubmit: data => addDocTo(cfg.massnPath, { ...data, done:false })
+}));
 
-  container.appendChild(listFormCard({
-    title:"Maßnahmen (abhakbar)",
-    list: STOREFromPath(cfg.massnPath),
-    renderLine: m => { const id=m.id, checked=m.done?"checked":""; 
-  return `<strong>${m.person}</strong> — ${m.text||"—"} • Fällig: ${m.faellig||"—"}${byLine(m)}
-    <label style="display:inline-flex;align-items:center;gap:.4rem;margin-left:.6rem;">
-      <input type="checkbox" data-doc="${id}" ${checked} class="chk-done"> erledigt
-    </label>`;
-},
-    onSubmit: data => addDocTo(cfg.massnPath, { ...data, done:false })
-  }));
   container.addEventListener("change", async (e)=>{
     const chk = e.target.closest(".chk-done"); if (!chk) return;
     const id = chk.dataset.doc;
