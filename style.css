@@ -226,3 +226,20 @@ td a:hover{text-decoration:underline}
   background: #fff;
   padding: 4px;
 }
+/* 2-spaltiges Formular-Grid (für Rezeptdetails) */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .6rem;
+}
+@media (max-width: 720px) {
+  .grid-2 { grid-template-columns: 1fr; }
+}
+
+/* zarte Trennerlinie im Formular */
+.card hr {
+  border: 0;
+  height: 1px;
+  background: var(--border);
+  margin: .8rem 0;
+}
