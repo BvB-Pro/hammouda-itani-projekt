@@ -225,8 +225,19 @@ function updateAuthUI(){
   document.getElementById("hero")?.style && (document.getElementById("hero").style.display = isIn ? "" : "none");
   document.getElementById("companyTabs")?.style && (document.getElementById("companyTabs").style.display = isIn ? "" : "none");
   document.getElementById("app")?.style && (document.getElementById("app").style.display = isIn ? "" : "none");
-}
 
+  // 🔽 Benutzeranzeige aktualisieren
+  const ud = document.getElementById("userDisplay");
+  if (ud) {
+    if (isIn) {
+      const u = auth.currentUser;
+      const name = u.displayName || (u.email ? u.email.split("@")[0] : "Unbekannt");
+      ud.textContent = `Benutzer: ${name}`;
+    } else {
+      ud.textContent = "";
+    }
+  }
+}
 
   qs("#printBtn")?.addEventListener("click", () => window.print());
   document.body.addEventListener("click", (e)=>{
