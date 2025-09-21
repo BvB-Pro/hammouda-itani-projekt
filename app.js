@@ -877,16 +877,39 @@ function renderAmbulant(app){
 function renderErgo(app){
   app.appendChild(cardInfo("Info",
     "Ergotherapeuten „Unart“: Erst Klienten, Einheiten aufklappbar."));
-  app.appendChild(listFormCard({
-    title:"Klienten",
-    list: STORE.ergo.klienten,
-    renderLine: k => `<strong>${k.name}</strong> — Ziel: ${k.ziel||"—"}`,
-    formHTML: `
-      ${input("Name","name",true)}
-      ${input("Ziel (optional)","ziel")}
-    `,
-    onSubmit: data => addDocTo(COL.ergo_klienten, data)
-  }));
+app.appendChild(listFormCard({
+  title:"Klienten (inkl. Verordnung)",
+  list: STORE.ergo.klienten,
+  renderLine: k => `
+    <strong>${k.name}</strong> — Ziel: ${k.ziel||"—"}
+    ${k.ver_icd || k.ver_diagnose ? `<br><span class="muted">Verordnung: ${k.ver_icd?`ICD ${esc(k.ver_icd)} `:""}${k.ver_diagnose?`– ${esc(k.ver_diagnose)}`:""}</span>` : ""}
+  `,
+  formHTML: `
+    ${input("Name","name",true)}
+    ${input("Ziel (optional)","ziel")}
+
+    <hr>
+    <h4 style="margin:.4rem 0">Verordnung (Heilmittel)</h4>
+    <div class="grid-2">
+      ${input("Krankenkasse","ver_kasse",false,"text","z. B. AOK Nordwest")}
+      ${input("Versichertennummer","ver_versnr",false,"text")}
+      ${input("ICD-10 Code","ver_icd",false,"text","z. B. F82.0")}
+      ${input("Diagnose / Leitsymptomatik","ver_diagnose",false,"text","z. B. Motorische Störungen")}
+      ${input("Therapieart / Inhalte","ver_therapie",false,"text","Feinmotorik-Training, ADL …")}
+      ${input("Anzahl Einheiten gesamt","ver_einheiten",false,"number")}
+      ${input("Frequenz (pro Woche)","ver_freq",false,"text","z. B. 2x wöchentlich")}
+      ${input("Behandlungsbeginn","ver_start",false,"date")}
+      ${input("Ziele laut Verordnung","ver_ziele",false,"text","kurz stichwortartig")}
+      ${select("Hausbesuch","ver_hausbesuch",["nein","ja"])}
+      ${select("Dringlicher Behandlungsbedarf","ver_dringlich",["nein","ja"])}
+      ${input("Verordnungsdatum","ver_datum",false,"date")}
+      ${input("Betriebsstätten-Nr. (BSNR)","ver_bsnr",false,"text")}
+      ${input("Arzt-Nr. (LANR)","ver_arzt",false,"text")}
+    </div>
+  `,
+  onSubmit: data => addDocTo(COL.ergo_klienten, data)
+}));
+
   app.appendChild(collapsibleCard("Einheiten …",(body)=>{
     body.appendChild(listFormCard({
       title:"Einheiten",
@@ -920,33 +943,85 @@ function renderErgo(app){
 
 /* ---------- Apotheke ---------- */
 function renderApotheke(app){
+  // Info
   app.appendChild(cardInfo("Info",
     "Sonnen Apotheke: Erst Kunden erfassen, Abgaben aufklappbar."));
+
+  // Kunden anlegen
   app.appendChild(listFormCard({
     title:"Kunden",
     list: STORE.apotheke.kunden,
-    renderLine: k => `<strong>${k.name}</strong> — ${k.geburt||"Geburt unbekannt"}`,
+    renderLine: k => `<strong>${k.name}</strong> — ${k.geburt || "Geburt unbekannt"}`,
     formHTML: `
       ${input("Name","name",true)}
       ${input("Geburt (optional)","geburt",false,"date")}
     `,
     onSubmit: data => addDocTo(COL.apo_kunden, data)
   }));
+
+  // Abgaben mit UX-Toggling
   app.appendChild(collapsibleCard("Abgaben …",(body)=>{
-    body.appendChild(listFormCard({
+    const abgabenCard = listFormCard({
       title:"Abgaben",
       list: STORE.apotheke.abgaben,
-      renderLine: x => `<strong>${x.kunde}</strong> — ${x.praeparat||"—"} • ${x.dosis||"—"} <em>(${x.datum||"—"})</em>`,
+      renderLine: x => {
+        const rcp = (x.rezept_vorhanden === "ja") ? badge("Rezept") : badge("ohne Rezept");
+        return `<strong>${x.kunde}</strong> — ${x.praeparat||"—"} • ${x.dosis||"—"} ${x.menge?`• ${x.menge}`:""} ${rcp} <em>(${x.datum||"—"})</em>`;
+      },
       formHTML: `
         ${select("Kunde","kunde", STORE.apotheke.kunden.map(k=>k.name))}
         ${input("Datum","datum",false,"date",today())}
         ${input("Präparat","praeparat",false,"text","Platzhalterpräparat")}
         ${input("Dosis/Anweisung","dosis",false,"text","z. B. 1-0-1, nach dem Essen")}
+        ${input("Packungsgröße / Menge","menge",false,"text","z. B. N3, 100 Tbl.")}
+
+        <hr>
+        ${select("Rezept vorhanden?","rezept_vorhanden",["ja","nein"])}
+
+        <div class="grid-2">
+          ${input("Krankenkasse","kasse",false,"text","z. B. AOK Nordwest")}
+          ${input("Versichertennummer","versnr",false,"text")}
+          ${input("Status","status",false,"text","z. B. 1")}
+          ${input("Geburtsdatum des/der Versicherten","geburt",false,"date")}
+          ${input("Betriebsstätten-Nr. (BSNR)","bsnr",false,"text")}
+          ${input("Arzt-Nr. (LANR)","arzt_nr",false,"text")}
+          ${input("Verordnungsdatum","verord_datum",false,"date")}
+          ${select("Arbeitsunfall?","arbeitsunfall",["nein","ja"])}
+          ${input("Unfalltag (falls AU)","unfalltag",false,"date")}
+        </div>
       `,
       onSubmit: data => addDocTo(COL.apo_abgaben, data)
-    }));
+    });
+
+    body.appendChild(abgabenCard);
+
+    // === UX: Rezept-Details nur zeigen, wenn "Rezept vorhanden? = ja" ===
+    const form = abgabenCard.querySelector("form");
+
+    function toggleRezeptDetails() {
+      const sel = form.querySelector('select[name="rezept_vorhanden"]');
+      const show = sel?.value === "ja";
+      const detailNames = [
+        "kasse","versnr","status","geburt",
+        "bsnr","arzt_nr","verord_datum",
+        "arbeitsunfall","unfalltag"
+      ];
+      [...form.querySelectorAll("label")].forEach(l => {
+        const ctrl = l.querySelector("input,select");
+        if (ctrl && detailNames.includes(ctrl.name)) {
+          l.style.display = show ? "" : "none";
+        }
+      });
+    }
+
+    // Initial schalten & bei Änderung reagieren
+    toggleRezeptDetails();
+    form.addEventListener("change", (e)=>{
+      if (e.target.matches('select[name="rezept_vorhanden"]')) toggleRezeptDetails();
+    });
   }));
 }
+
 
 /* ---------- Kinderarzt ---------- */
 function renderKinderarzt(app){
