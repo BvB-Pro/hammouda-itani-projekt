@@ -248,3 +248,10 @@ td a:hover{text-decoration:underline}
   font-style: italic;
   font-weight: 600;   /* etwas hervorgehoben */
 }
+.user-display {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e11d48; /* Rot wie Danger */
+  margin-right: 12px;
+}
+
