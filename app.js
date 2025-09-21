@@ -4,7 +4,7 @@
    - Unterseiten: Leadership-Tabelle + Module
 */
 
-import { db, authReady } from "./firebase.js";
+import { db, authReady, loginWithUsername, logout, auth } from "./firebase.js";
 import {
   collection, addDoc, onSnapshot, serverTimestamp,
   query, orderBy, updateDoc, doc
