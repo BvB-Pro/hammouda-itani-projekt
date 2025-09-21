@@ -9,6 +9,7 @@ import {
   collection, addDoc, onSnapshot, serverTimestamp,
   query, orderBy, updateDoc, doc
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 /* ====== Seiten ====== */
 const PAGES = [
@@ -243,7 +244,6 @@ function updateAuthUI(){
 updateAuthUI();
 
 // Bei Login/Logout neu schalten (und Daten „anwerfen“)
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 onAuthStateChanged(auth, ()=>{
   updateAuthUI();
   if (auth.currentUser) {
@@ -821,18 +821,19 @@ function renderKita(app){
       `,
       onSubmit: data => addDocTo(COL.kita_anwesenheit, data)
     }));
-    body.appendChild(listFormCard({
-      title:"Elternkommunikation",
-      list: STORE.kita.eltern,
-      renderLine: x => `<strong>${x.kindId}</strong> • ${x.kanal||"—"} — <em>${x.datum||"—"}</em>${byLine(x)}<br>${x.inhalt||"—"}`
-      formHTML: `
-        ${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}
-        ${input("Datum","datum",false,"date",today())}
-        ${select("Kanal","kanal", ["Tür-und-Angel","Telefon","E-Mail","Elterngespräch"])}
-        ${textarea("Inhalt","inhalt")}
-      `,
-      onSubmit: data => addDocTo(COL.kita_eltern, data)
-    }));
+
+   body.appendChild(listFormCard({
+  title:"Elternkommunikation",
+  list: STORE.kita.eltern,
+  renderLine: x => `<strong>${x.kindId}</strong> • ${x.kanal||"—"} — <em>${x.datum||"—"}</em>${byLine(x)}<br>${x.inhalt||"—"}`,
+  formHTML: `
+    ${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}
+    ${input("Datum","datum",false,"date",today())}
+    ${select("Kanal","kanal", ["Tür-und-Angel","Telefon","E-Mail","Elterngespräch"])}
+    ${textarea("Inhalt","inhalt")}
+  `,
+  onSubmit: data => addDocTo(COL.kita_eltern, data)
+}));
   }));
 }
 
