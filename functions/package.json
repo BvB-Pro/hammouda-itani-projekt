@@ -1,0 +1,8 @@
+{
+  "name": "stiftung-functions",
+  "engines": { "node": "18" },
+  "dependencies": {
+    "firebase-admin": "^12.5.0",
+    "firebase-functions": "^6.0.0"
+  }
+}
