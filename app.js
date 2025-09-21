@@ -93,8 +93,8 @@ function ensureLightbox(imageList){
   function prev(){ show(idx-1); }
 
   btnNext.addEventListener("click", next);
-  btnPrev.addEventListener("click, keydown",(e)=>{ if(e.type==="click"||e.key==="Enter"){prev();} });
-  btnPrev.addEventListener("click", prev);
+btnPrev.addEventListener("click", prev);
+btnPrev.addEventListener("keydown", (e)=>{ if (e.key === "Enter" || e.key === " ") prev(); });
   btnClose.addEventListener("click", close);
   box.addEventListener("click",(e)=>{ if(e.target===box) close(); });
   document.addEventListener("keydown",(e)=>{
@@ -191,6 +191,42 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupDropdown("moreDropdown","moreBtn","moreMenu");
   buildCompanyTabs();
 
+  // Login/Logout-UI
+const loginCard = document.getElementById("loginCard");
+const loginForm = document.getElementById("loginForm");
+const logoutBtn = document.getElementById("logoutBtn");
+
+// Login-Formular absenden
+loginForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(loginForm));
+  const btn = loginForm.querySelector('button[type="submit"]');
+  const t = btn.textContent;
+  try{
+    btn.disabled = true; btn.textContent = "Anmelden…";
+    await loginWithUsername(data.username, data.password);
+    loginForm.reset();
+  }catch(err){
+    alert("Login fehlgeschlagen: " + (err.code || err.message || err));
+  }finally{
+    btn.disabled = false; btn.textContent = t;
+  }
+});
+
+// Logout
+logoutBtn?.addEventListener("click", async ()=>{ await logout(); });
+
+// Sichtbarkeit von App/Login steuern
+function updateAuthUI(){
+  const isIn = !!auth.currentUser;
+  document.getElementById("loginCard")?.style && (document.getElementById("loginCard").style.display = isIn ? "none" : "block");
+  document.getElementById("logoutBtn")?.style && (document.getElementById("logoutBtn").style.display = isIn ? "inline-flex" : "none");
+  document.getElementById("hero")?.style && (document.getElementById("hero").style.display = isIn ? "" : "none");
+  document.getElementById("companyTabs")?.style && (document.getElementById("companyTabs").style.display = isIn ? "" : "none");
+  document.getElementById("app")?.style && (document.getElementById("app").style.display = isIn ? "" : "none");
+}
+
+
   qs("#printBtn")?.addEventListener("click", () => window.print());
   document.body.addEventListener("click", (e)=>{
     const btn = e.target.closest("#moreMenu button"); if (!btn) return;
@@ -203,6 +239,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   ensureLeadershipPanel();
 
   await authReady;
+  // Nach Auth-Initialisierung UI setzen
+updateAuthUI();
+
+// Bei Login/Logout neu schalten (und Daten „anwerfen“)
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+onAuthStateChanged(auth, ()=>{
+  updateAuthUI();
+  if (auth.currentUser) {
+    // nach Login: Realtime-Listener sicher initialisiert + Seite rendern
+    initRealtime?.();
+    switchTo?.(CURRENT_PAGE);
+  }
+});
+
   await initRealtime().catch(console.warn);
 
   switchTo(CURRENT_PAGE);
@@ -324,8 +374,19 @@ function subscribe(refOrQuery, targetArr){
   });
 }
 async function addDocTo(path, data){
-  return addDoc(collection(db, path), { ...data, _ts: serverTimestamp() });
+  const u = auth.currentUser;
+  const by = u ? {
+    uid: u.uid,
+    username: (u.email || "").split("@")[0],
+    displayName: u.displayName || (u.email || "").split("@")[0]
+  } : null;
+  return addDoc(collection(db, path), {
+    ...data,
+    _by: by,              // ⬅️ Autorinfos
+    _ts: serverTimestamp()
+  });
 }
+
 
 /* ====== Routing ====== */
 function switchTo(id){
@@ -371,6 +432,10 @@ function cardInfo(title, text){
   return d;
 }
 function badge(txt){ return `<span class="badge">${txt}</span>`; }
+  function byLine(obj){
+  const n = obj?._by?.displayName || obj?._by?.username;
+  return n ? ` <span class="badge" title="Erstellt von">${esc(n)}</span>` : "";
+}
 function input(label,name,required=false,type="text",value="",extraAttrs={}){ const attrs=Object.entries(extraAttrs).map(([k,v])=>`${k}="${v}"`).join(" "); return `<label>${label}<input name="${name}" type="${type}" value="${value||""}" ${required?"required":""} ${attrs}></label>`; }
 function textarea(label,name,value=""){ return `<label>${label}<textarea name="${name}">${value||""}</textarea></label>`; }
 function select(label,name,options=[]){ const opts=options.map(o=>`<option value="${o}">${o}</option>`).join(""); return `<label>${label}<select name="${name}">${opts}</select></label>`; }
@@ -380,6 +445,8 @@ function listFormCard({title,list,renderLine,formHTML,onSubmit}){
   else { list.forEach(item=>{ const d=ce("div"); d.innerHTML=renderLine(item); wrap.appendChild(d); }); }
    const form = ce("form"); 
 form.innerHTML = formHTML;
+
+
 
 // 🔒 Sicherstellen, dass IMMER ein Submit-Button existiert
 let submitBtn = form.querySelector('button[type="submit"]');
@@ -675,7 +742,7 @@ Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Mensc
 
         box.innerHTML = `
           <div class="muted" style="margin-bottom:6px">${esc(o.datum||"")}</div>
-          <strong>${esc(o.unternehmen||"-")}</strong> • ${esc(o.ansprechpartner||"-")}
+          <strong>${esc(o.unternehmen||"-")}</strong> • ${esc(o.ansprechpartner||"-")}${byLine(o)}
           <div style="margin:.4rem 0"><ul style="margin:.2rem 0 .4rem 1.2rem">${itemsHTML}</ul></div>
           <div class="toolbar">
             <label>Bestellnummer: <input type="text" class="ordernr" value="${o.orderNumber?esc(o.orderNumber):""}" placeholder="z. B. HI-2025-123"></label>
@@ -714,12 +781,13 @@ Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Mensc
 
 /* ---------- Kita ---------- */
 function renderKita(app){
+
   app.appendChild(cardInfo("Info",
     "Die drei Löwen Kindergarten: Bitte nur Übungsdaten verwenden. Alle Einträge werden zentral gespeichert."));
   app.appendChild(listFormCard({
     title:"Kinder",
     list: STORE.kita.kinder,
-    renderLine: k => `<strong>${k.vorname} ${k.nachname}</strong> — geb. ${k.geburtstag||"—"} ${k.gruppe?badge(k.gruppe):""}`,
+  renderLine: k => `<strong>${k.vorname} ${k.nachname}</strong> — geb. ${k.geburtstag||"—"} ${k.gruppe?badge(k.gruppe):""}${byLine(k)}`,
     formHTML: `
       ${input("Vorname","vorname",true)}
       ${input("Nachname","nachname",true)}
@@ -732,7 +800,7 @@ function renderKita(app){
     body.appendChild(listFormCard({
       title:"Beobachtungen",
       list: STORE.kita.beobachtungen,
-      renderLine: b => `<strong>${b.kindId}</strong> • ${b.bereich||"—"} — <em>${b.datum||"—"}</em><br>${b.text||"—"}`,
+      renderLine: b => `<strong>${b.kindId}</strong> • ${b.bereich||"—"} — <em>${b.datum||"—"}</em>${byLine(b)}<br>${b.text||"—"}`,
       formHTML: `
         ${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}
         ${input("Datum","datum",false,"date",today())}
@@ -744,7 +812,7 @@ function renderKita(app){
     body.appendChild(listFormCard({
       title:"Anwesenheit",
       list: STORE.kita.anwesenheit,
-      renderLine: a => `<strong>${a.kindId}</strong> — ${a.status||"—"} am <em>${a.datum||"—"}</em> ${a.abholer?("• Abholer: "+a.abholer):""}`,
+      renderLine: a => `<strong>${a.kindId}</strong> — ${a.status||"—"} am <em>${a.datum||"—"}</em>${byLine(a)} ${a.abholer?("• Abholer: "+a.abholer):""}`,
       formHTML: `
         ${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}
         ${input("Datum","datum",false,"date",today())}
@@ -756,7 +824,7 @@ function renderKita(app){
     body.appendChild(listFormCard({
       title:"Elternkommunikation",
       list: STORE.kita.eltern,
-      renderLine: x => `<strong>${x.kindId}</strong> • ${x.kanal||"—"} — <em>${x.datum||"—"}</em><br>${x.inhalt||"—"}`,
+      renderLine: x => `<strong>${x.kindId}</strong> • ${x.kanal||"—"} — <em>${x.datum||"—"}</em>${byLine(x)}<br>${x.inhalt||"—"}`
       formHTML: `
         ${select("Kind","kindId", STORE.kita.kinder.map(k=>`${k.vorname} ${k.nachname}`))}
         ${input("Datum","datum",false,"date",today())}
@@ -775,7 +843,8 @@ function renderPflege(app){
   app.appendChild(listFormCard({
     title:"Bewohner",
     list: STORE.pflege.bewohner,
-    renderLine: p => `<strong>${p.vorname} ${p.nachname}</strong> — geb. ${p.geburt||"—"} ${p.zimmer?badge("Zimmer "+p.zimmer):""} ${p.pflegegrad?badge("PG "+p.pflegegrad):""}`,
+    // Bewohner
+renderLine: p => `<strong>${p.vorname} ${p.nachname}</strong> — geb. ${p.geburt||"—"} ${p.zimmer?badge("Zimmer "+p.zimmer):""} ${p.pflegegrad?badge("PG "+p.pflegegrad):""}${byLine(p)}`,
     formHTML: `
       ${input("Vorname","vorname",true)}
       ${input("Nachname","nachname",true)}
@@ -811,7 +880,8 @@ function renderKrankenhaus(app){
   app.appendChild(listFormCard({
     title:"Patienten",
     list: STORE.krankenhaus.patienten,
-    renderLine: p => `<strong>${p.name}</strong> — ${p.fach||"—"} • ${p.datum||"—"}`,
+    // Patienten
+renderLine: p => `<strong>${p.name}</strong> — ${p.fach||"—"} • ${p.datum||"—"}${byLine(p)}`,
     formHTML: `
       ${input("Patientenname","name",true)}
       ${input("Geburt","geburt",false,"date")}
@@ -846,7 +916,8 @@ function renderAmbulant(app){
   app.appendChild(listFormCard({
     title:"Klienten",
     list: STORE.ambulant.klienten,
-    renderLine: x => `<strong>${x.name}</strong> — ${x.adresse||"—"} ${x.pflegegrad?badge("PG "+x.pflegegrad):""}`,
+   // Klienten
+renderLine: x => `<strong>${x.name}</strong> — ${x.adresse||"—"} ${x.pflegegrad?badge("PG "+x.pflegegrad):""}${byLine(x)}`,
     formHTML: `
       ${input("Name","name",true)}
       ${input("Adresse","adresse")}
@@ -881,9 +952,9 @@ app.appendChild(listFormCard({
   title:"Klienten (inkl. Verordnung)",
   list: STORE.ergo.klienten,
   renderLine: k => `
-    <strong>${k.name}</strong> — Ziel: ${k.ziel||"—"}
-    ${k.ver_icd || k.ver_diagnose ? `<br><span class="muted">Verordnung: ${k.ver_icd?`ICD ${esc(k.ver_icd)} `:""}${k.ver_diagnose?`– ${esc(k.ver_diagnose)}`:""}</span>` : ""}
-  `,
+  <strong>${k.name}</strong> — Ziel: ${k.ziel||"—"}${byLine(k)}
+  ${k.ver_icd || k.ver_diagnose ? `<br><span class="muted">Verordnung: ${k.ver_icd?`ICD ${esc(k.ver_icd)} `:""}${k.ver_diagnose?`– ${esc(k.ver_diagnose)}`:""}</span>` : ""}
+`,
   formHTML: `
     ${input("Name","name",true)}
     ${input("Ziel (optional)","ziel")}
@@ -914,7 +985,7 @@ app.appendChild(listFormCard({
     body.appendChild(listFormCard({
       title:"Einheiten",
       list: STORE.ergo.einheiten,
-      renderLine: x => `<strong>${x.klient}</strong> — Ziel: ${x.ziel||"—"} • <em>${x.datum||"—"}</em><br>${x.inhalt||"—"}`,
+      renderLine: x => `<strong>${x.klient}</strong> — Ziel: ${x.ziel||"—"} • <em>${x.datum||"—"}</em>${byLine(x)}<br>${x.inhalt||"—"}`,
       formHTML: `
         ${select("Klient","klient", STORE.ergo.klienten.map(k=>k.name))}
         ${input("Datum","datum",false,"date",today())}
@@ -929,7 +1000,7 @@ app.appendChild(listFormCard({
     body.appendChild(listFormCard({
       title:"Dokumentation / Bericht",
       list: STORE.ergo.berichte,
-      renderLine: b => `<strong>${b.person}</strong> — <em>${b.datum || "—"}</em><br>${(b.text || "—")}`,
+      renderLine: b => `<strong>${b.person}</strong> — <em>${b.datum || "—"}</em>${byLine(b)}<br>${(b.text || "—")}`,
       formHTML: `
         ${select("Klient","person", STORE.ergo.klienten.map(k=>k.name))}
         ${input("Datum","datum",false,"date",today())}
@@ -951,7 +1022,7 @@ function renderApotheke(app){
   app.appendChild(listFormCard({
     title:"Kunden",
     list: STORE.apotheke.kunden,
-    renderLine: k => `<strong>${k.name}</strong> — ${k.geburt || "Geburt unbekannt"}`,
+    renderLine: k => `<strong>${k.name}</strong> — ${k.geburt||"Geburt unbekannt"}${byLine(k)}`,
     formHTML: `
       ${input("Name","name",true)}
       ${input("Geburt (optional)","geburt",false,"date")}
@@ -965,9 +1036,9 @@ function renderApotheke(app){
       title:"Abgaben",
       list: STORE.apotheke.abgaben,
       renderLine: x => {
-        const rcp = (x.rezept_vorhanden === "ja") ? badge("Rezept") : badge("ohne Rezept");
-        return `<strong>${x.kunde}</strong> — ${x.praeparat||"—"} • ${x.dosis||"—"} ${x.menge?`• ${x.menge}`:""} ${rcp} <em>(${x.datum||"—"})</em>`;
-      },
+  const rcp = (x.rezept_vorhanden === "ja") ? badge("Rezept") : badge("ohne Rezept");
+  return `<strong>${x.kunde}</strong> — ${x.praeparat||"—"} • ${x.dosis||"—"} ${x.menge?`• ${x.menge}`:""} ${rcp} <em>(${x.datum||"—"})</em>${byLine(x)}`;
+},
       formHTML: `
         ${select("Kunde","kunde", STORE.apotheke.kunden.map(k=>k.name))}
         ${input("Datum","datum",false,"date",today())}
@@ -1030,7 +1101,7 @@ function renderKinderarzt(app){
   app.appendChild(listFormCard({
     title:"Patienten",
     list: STORE.kinderarzt.patienten,
-    renderLine: p => `<strong>${p.vorname} ${p.nachname}</strong> — geb. ${p.geburt||"—"} ${p.kasse?badge(p.kasse):""} ${p.versnr?badge("Vers.-Nr. "+p.versnr):""}`,
+    renderLine: p => `<strong>${p.vorname} ${p.nachname}</strong> — geb. ${p.geburt||"—"} ${p.kasse?badge(p.kasse):""} ${p.versnr?badge("Vers.-Nr. "+p.versnr):""}${byLine(p)}`,
     formHTML: `
       ${input("Vorname","vorname",true)}
       ${input("Nachname","nachname",true)}
@@ -1044,7 +1115,7 @@ function renderKinderarzt(app){
     body.appendChild(listFormCard({
       title:"Besuche",
       list: STORE.kinderarzt.besuche,
-      renderLine: b => `<strong>${b.patient}</strong> — Grund: ${b.grund||"—"} • <em>${b.datum||"—"}</em><br>Befund: ${b.befund||"—"} • Therapie: ${b.therapie||"—"}`,
+      renderLine: b => `<strong>${b.patient}</strong> — Grund: ${b.grund||"—"} • <em>${b.datum||"—"}</em>${byLine(b)}<br>Befund: ${b.befund||"—"} • Therapie: ${b.therapie||"—"}`,
       formHTML: `
         ${select("Patient","patient", STORE.kinderarzt.patienten.map(p=>`${p.vorname} ${p.nachname}`))}
         ${input("Datum","datum",false,"date",today())}
@@ -1057,7 +1128,7 @@ function renderKinderarzt(app){
     body.appendChild(listFormCard({
       title:"Termine",
       list: STORE.kinderarzt.termine.slice().sort((a,b)=>(a.datum+a.zeit).localeCompare(b.datum+b.zeit)),
-      renderLine: t => `<strong>${t.patient}</strong> — ${t.grund||"Termin"} am <em>${t.datum||"—"}</em> um <em>${t.zeit||"--:--"}</em>${t.notiz?("<br>"+t.notiz):""}`,
+      renderLine: t => `<strong>${t.patient}</strong> — ${t.grund||"Termin"} am <em>${t.datum||"—"}</em> um <em>${t.zeit||"--:--"}</em>${byLine(t)}${t.notiz?("<br>"+t.notiz):""}`,
       formHTML: `
         ${select("Patient","patient", STORE.kinderarzt.patienten.map(p=>`${p.vorname} ${p.nachname}`))}
         ${input("Datum","datum",true,"date",today())}
@@ -1078,7 +1149,7 @@ function buildCommonModules(container, cfg){
   container.appendChild(listFormCard({
     title:"Ärztliche Anordnungen",
     list: STOREFromPath(cfg.anordPath),
-    renderLine: a => `<strong>${a.person}</strong> — ${a.anordnung||"—"} <em>(${a.datum||"—"})</em>`,
+  renderLine: a => `<strong>${a.person}</strong> — ${a.anordnung||"—"} <em>(${a.datum||"—"})</em>${byLine(a)}`,
     formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${textarea("Anordnung","anordnung")}`,
     onSubmit: data => addDocTo(cfg.anordPath, data)
   }));
@@ -1088,7 +1159,7 @@ function buildCommonModules(container, cfg){
     container.appendChild(listFormCard({
       title: "Dokumentation / Pflegebericht",
       list: STOREFromPath(cfg.docPath),
-      renderLine: b => `<strong>${b.person}</strong> — <em>${b.datum || "—"}</em><br>${(b.text || "—")}`,
+      renderLine: b => `<strong>${b.person}</strong> — <em>${b.datum || "—"}</em>${byLine(b)}<br>${(b.text || "—")}`,
       formHTML: `
         ${select(cfg.whoLabel || "Person", "person", people)}
         ${input("Datum","datum",false,"date",today())}
@@ -1101,8 +1172,12 @@ function buildCommonModules(container, cfg){
   container.appendChild(listFormCard({
     title:"Maßnahmen (abhakbar)",
     list: STOREFromPath(cfg.massnPath),
-    renderLine: m => { const id=m.id, checked=m.done?"checked":""; return `<strong>${m.person}</strong> — ${m.text||"—"} • Fällig: ${m.faellig||"—"} <label style="display:inline-flex;align-items:center;gap:.4rem;margin-left:.6rem;"><input type="checkbox" data-doc="${id}" ${checked} class="chk-done"> erledigt</label>`; },
-    formHTML: `${select(who,"person", people)}${input("Fällig am","faellig",false,"date",today())}${input("Maßnahme","text",true)}`,
+    renderLine: m => { const id=m.id, checked=m.done?"checked":""; 
+  return `<strong>${m.person}</strong> — ${m.text||"—"} • Fällig: ${m.faellig||"—"}${byLine(m)}
+    <label style="display:inline-flex;align-items:center;gap:.4rem;margin-left:.6rem;">
+      <input type="checkbox" data-doc="${id}" ${checked} class="chk-done"> erledigt
+    </label>`;
+},
     onSubmit: data => addDocTo(cfg.massnPath, { ...data, done:false })
   }));
   container.addEventListener("change", async (e)=>{
@@ -1115,7 +1190,8 @@ function buildCommonModules(container, cfg){
   container.appendChild(listFormCard({
     title:"Sturzbericht",
     list: STOREFromPath(cfg.sturzPath),
-    renderLine: s => `<strong>${s.person}</strong> — ${s.ort||"—"} am <em>${s.datum||"—"}</em><br>Folgen: ${s.folgen||"—"} • Arzt: ${s.arzt||"—"} • Meldung: ${s.meldung||"—"}`,
+   renderLine: s => `<strong>${s.person}</strong> — ${s.ort||"—"} am <em>${s.datum||"—"}</em>${byLine(s)}<br>Folgen: ${s.folgen||"—"} • Arzt: ${s.arzt||"—"} • Meldung: ${s.meldung||"—"}`,
+
     formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Ort","ort",false,"text","Bad, Zimmer, Flur …")}${textarea("Folgen","folgen")}${select("Arzt informiert?","arzt",["ja","nein"])}${textarea("Meldung/Infofluss","meldung","Team/Angehörige informiert …")}`,
     onSubmit: data => addDocTo(cfg.sturzPath, data)
   }));
@@ -1123,7 +1199,7 @@ function buildCommonModules(container, cfg){
   container.appendChild(listFormCard({
     title:"Wundbericht",
     list: STOREFromPath(cfg.wundePath),
-    renderLine: w => `<strong>${w.person}</strong> — Art: ${w.art||"—"} • Stadium: ${w.stadium||"—"} • Größe: ${w.groesse||"—"} <em>(${w.datum||"—"})</em><br>Versorgung: ${w.versorgung||"—"}`,
+    renderLine: w => `<strong>${w.person}</strong> — Art: ${w.art||"—"} • Stadium: ${w.stadium||"—"} • Größe: ${w.groesse||"—"} <em>(${w.datum||"—"})</em>${byLine(w)}<br>Versorgung: ${w.versorgung||"—"}`,
     formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Art","art",false,"text","Dekubitus, Schnitt, …")}${input("Stadium","stadium")}${input("Größe","groesse",false,"text","z. B. 2x3 cm")}${textarea("Versorgung","versorgung")}`,
     onSubmit: data => addDocTo(cfg.wundePath, data)
   }));
@@ -1131,7 +1207,7 @@ function buildCommonModules(container, cfg){
   container.appendChild(listFormCard({
     title:"Vitalwerte",
     list: STOREFromPath(cfg.vitPath),
-    renderLine: v => `<strong>${v.person}</strong> — ${v.puls||"?"}/min, RR ${v.rr||"?"}, ${v.temp||"?"}°C, SpO₂ ${v.spo2||"?"}% <em>(${v.datum||"—"})</em>`,
+   renderLine: v => `<strong>${v.person}</strong> — ${v.puls||"?"}/min, RR ${v.rr||"?"}, ${v.temp||"?"}°C, SpO₂ ${v.spo2||"?"}% <em>(${v.datum||"—"})</em>${byLine(v)}`,
     formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Puls (/min)","puls",false,"number")}${input("RR","rr",false,"text","120/80")}${input("Temp (°C)","temp",false,"number","",{"step":"0.1"})}${input("SpO₂ (%)","spo2",false,"number")}`,
     onSubmit: data => addDocTo(cfg.vitPath, {
       ...data,
@@ -1144,7 +1220,7 @@ function buildCommonModules(container, cfg){
   container.appendChild(listFormCard({
     title:"Medikationen",
     list: STOREFromPath(cfg.mediPath),
-    renderLine: m => `<strong>${m.person}</strong> — ${m.wirkstoff||"—"} (${m.praeparat||"?"}) • ${m.dosis||"—"} • ${m.form||"—"} • ${m.anwendung||"—"} • Grund: ${m.grund||"—"} <em>(${m.datum||"—"})</em>`,
+    renderLine: m => `<strong>${m.person}</strong> — ${m.wirkstoff||"—"} (${m.praeparat||"?"}) • ${m.dosis||"—"} • ${m.form||"—"} • ${m.anwendung||"—"} • Grund: ${m.grund||"—"} <em>(${m.datum||"—"})</em>${byLine(m)}`,
     formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Präparat (Herstellername)","praeparat")}${input("Wirkstoff","wirkstoff")}${input("Dosis","dosis",false,"text","z. B. 1-0-1")}${input("Darreichungsform","form",false,"text","Tbl., Kps., Saft …")}${input("Anwendungsform","anwendung",false,"text","p.o., i.v., s.c.…")}${input("Grund der Anwendung","grund")}`,
     onSubmit: data => addDocTo(cfg.mediPath, data)
   }));
@@ -1152,7 +1228,7 @@ function buildCommonModules(container, cfg){
   container.appendChild(listFormCard({
     title:"Flüssigkeitsbilanz",
     list: STOREFromPath(cfg.flPath),
-    renderLine: f => `<strong>${f.person}</strong> — Ein: ${f.ein||0} ml • Aus: ${f.aus||0} ml • Bilanz: ${(Number(f.ein||0)-Number(f.aus||0))} ml <em>(${f.datum||"—"})</em>`,
+    renderLine: f => `<strong>${f.person}</strong> — Ein: ${f.ein||0} ml • Aus: ${f.aus||0} ml • Bilanz: ${(Number(f.ein||0)-Number(f.aus||0))} ml <em>(${f.datum||"—"})</em>${byLine(f)}`,
     formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Einfuhr (ml)","ein",false,"number")}${input("Ausfuhr (ml)","aus",false,"number")}${textarea("Bemerkung","bem")}`,
     onSubmit: data => addDocTo(cfg.flPath, { ...data, ein: data.ein?Number(data.ein):0, aus: data.aus?Number(data.aus):0 })
   }));
@@ -1160,7 +1236,7 @@ function buildCommonModules(container, cfg){
   container.appendChild(listFormCard({
     title:"Lagerung / Mobilisation",
     list: STOREFromPath(cfg.lagPath),
-    renderLine: l => `<strong>${l.person}</strong> — Art: ${l.art||"—"} • Dauer: ${l.dauer||"—"} • Hilfsmittel: ${l.hilfsmittel||"—"} <em>(${l.datum||"—"})</em>`,
+    renderLine: l => `<strong>${l.person}</strong> — Art: ${l.art||"—"} • Dauer: ${l.dauer||"—"} • Hilfsmittel: ${l.hilfsmittel||"—"} <em>(${l.datum||"—"})</em>${byLine(l)}`,
     formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Art","art",false,"text","30°-Seitenlage, Mikrolagerung …")}${input("Dauer","dauer",false,"text","z. B. 30 Min.")}${input("Hilfsmittel","hilfsmittel",false,"text","Kissen, Lagerungsrolle …")}${textarea("Bemerkung","bem")}`,
     onSubmit: data => addDocTo(cfg.lagPath, data)
   }));
@@ -1168,7 +1244,7 @@ function buildCommonModules(container, cfg){
   container.appendChild(listFormCard({
     title:"Schmerzbeobachtung",
     list: STOREFromPath(cfg.schPath),
-    renderLine: s => `<strong>${s.person}</strong> — Skala: ${s.skala??"?"}/10 • Lokalisation: ${s.lokal||"—"} • Maßnahme: ${s.massnahme||"—"} <em>(${s.datum||"—"})</em>`,
+   renderLine: s => `<strong>${s.person}</strong> — Skala: ${s.skala??"?"}/10 • Lokalisation: ${s.lokal||"—"} • Maßnahme: ${s.massnahme||"—"} <em>(${s.datum||"—"})</em>${byLine(s)}`,
     formHTML: `${select(who,"person", people)}${input("Datum","datum",false,"date",today())}${input("Schmerzskala (0-10)","skala",false,"number")}${input("Lokalisation","lokal")}${textarea("Maßnahme/Wirksamkeit","massnahme")}`,
     onSubmit: data => addDocTo(cfg.schPath, { ...data, skala: data.skala?Number(data.skala):undefined })
   }));
