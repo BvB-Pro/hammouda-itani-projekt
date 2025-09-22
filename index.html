@@ -32,7 +32,16 @@
   <div id="userDisplay" class="user-display"></div>
 
     <nav class="nav">
-      <button id="logoutBtn" class="btn" style="display:none">Logout</button>
+      <button id="logoutBtn" class="btn" style="display:none">Logout</button><div id="userMenu" class="dropdown">
+  <button id="userBtn" class="btn ghost">👤 Benutzer</button>
+  <div id="userMenuItems" class="menu">
+    <button data-action="pw-change">Passwort ändern</button>
+    <button data-action="settings">Einstellungen</button>
+    <button data-action="postfach">Postfach</button>
+    <button data-action="logout" class="danger">Logout</button>
+  </div>
+</div>
+
 
       <!-- Weitere Aktionen -->
       <div id="moreDropdown" class="dropdown">
