@@ -10,6 +10,8 @@ import {
   query, orderBy, updateDoc, doc
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
 
 /* ====== Seiten ====== */
 const PAGES = [
@@ -191,8 +193,9 @@ const STORE = {
 document.addEventListener("DOMContentLoaded", async () => {
   const ui = loadUI();
   if (ui.dark === true) document.documentElement.classList.add("dark");
+setupDropdown("moreDropdown","moreBtn","moreMenu");
+setupDropdown("userMenu","userBtn","userMenuItems");
 
-  setupDropdown("moreDropdown","moreBtn","moreMenu");
   buildCompanyTabs();
 
   // Login/Logout-UI
@@ -290,14 +293,20 @@ function updateAuthUI(){
 updateAuthUI();
 
 // Bei Login/Logout neu schalten (und Daten „anwerfen“)
-onAuthStateChanged(auth, ()=>{
+onAuthStateChanged(auth, (u)=>{
   updateAuthUI();
-  if (auth.currentUser) {
-    // nach Login: Realtime-Listener sicher initialisiert + Seite rendern
+  startPostfachRealtimeForUser(u);   // << NEU
+
+  if (u) {
     initRealtime?.();
     switchTo?.(CURRENT_PAGE);
+  } else {
+    // Logout: Postfach leeren und neu rendern
+    STORE.postfach.length = 0;
+    render();
   }
 });
+
 
   await initRealtime().catch(console.warn);
 
@@ -335,19 +344,73 @@ function updateActiveTabs(){
 
 /* ====== Dropdown (nur „Mehr“) ====== */
 function setupDropdown(wrapperId, buttonId, menuId){
-   setupDropdown("userMenu","userBtn","userMenuItems");
-
   const wrap = qs("#"+wrapperId), btn=qs("#"+buttonId), menu=qs("#"+menuId);
   const close=()=>{wrap?.classList.remove("open");btn?.setAttribute("aria-expanded","false")};
-  btn?.addEventListener("click",(e)=>{ e.stopPropagation(); wrap.classList.toggle("open"); btn.setAttribute("aria-expanded", wrap.classList.contains("open")?"true":"false"); if (wrap.classList.contains("open")) menu?.focus(); });
+  btn?.addEventListener("click",(e)=>{
+    e.stopPropagation();
+    wrap.classList.toggle("open");
+    btn.setAttribute("aria-expanded", wrap.classList.contains("open")?"true":"false");
+    if (wrap.classList.contains("open")) menu?.focus();
+  });
   document.addEventListener("click",(e)=>{ if (!wrap?.contains(e.target)) close(); });
   document.addEventListener("keydown",(e)=>{ if (e.key==="Escape") close(); });
 }
+
 
 /* ====== Realtime ====== */
 async function initRealtime(){
   const ascByDate = (path) => query(collection(db, path), orderBy("datum","asc"));
   const plain     = (path) => collection(db, path);
+
+   import { where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+let stopPostfach = null;
+
+function startPostfachRealtimeForUser(u){
+  // alte Listener stoppen
+  if (typeof stopPostfach === "function") { stopPostfach(); stopPostfach = null; }
+
+  if (!u) {
+    STORE.postfach.length = 0;
+    render();
+    return;
+  }
+
+  const unsubs = [];
+
+  // Eingehend
+  unsubs.push(onSnapshot(
+    query(collection(db, COL.postfach), where("toUid","==",u.uid)),
+    snap=>{
+      const incoming = [];
+      snap.forEach(d=> incoming.push({ id:d.id, ...d.data() }));
+      mergeAndRender(incoming);
+    }
+  ));
+
+  // Ausgehend
+  unsubs.push(onSnapshot(
+    query(collection(db, COL.postfach), where("fromUid","==",u.uid)),
+    snap=>{
+      const outgoing = [];
+      snap.forEach(d=> outgoing.push({ id:d.id, ...d.data() }));
+      mergeAndRender(outgoing);
+    }
+  ));
+
+  function mergeAndRender(part){
+    // einfache Merge-Strategie: IDs-basierte Ersetzung
+    const map = new Map(STORE.postfach.map(m=>[m.id,m]));
+    part.forEach(m=> map.set(m.id,m));
+    STORE.postfach.length = 0;
+    map.forEach(v=> STORE.postfach.push(v));
+    // optional: hier schon sortieren – render sortiert aber ebenfalls
+    render();
+  }
+
+  stopPostfach = ()=> unsubs.forEach(fn=>fn());
+}
+
 
   // Kita
   subscribe(plain(COL.kita_kinder), STORE.kita.kinder);
@@ -1208,29 +1271,33 @@ function renderKinderarzt(app){
 }
 
 function renderPostfach(app){
-  // Seite leeren
   app.innerHTML = "";
 
-  // Info-Karte (optional, nützlich für Gäste)
   const info = ce("div",{className:"card"});
   info.innerHTML = `
     <h3>Postfach</h3>
     <p class="muted">
-      Private 1:1-Nachrichten zwischen Benutzerkonten. 
-      <strong>Gäste</strong> können Inhalte sehen, aber <strong>keine</strong> Nachrichten senden.
+      Private 1:1-Nachrichten zwischen Benutzerkonten.
+      Gäste können das Postfach nicht einsehen und nicht senden.
     </p>
     <hr>
   `;
   app.appendChild(info);
 
-  // Nachrichtenliste + Formular
+  // 🚧 Gäste bekommen keine Nachrichtenliste (streng privat)
+  if (!auth.currentUser) {
+    const hint = ce("p",{className:"muted", textContent:"Bitte anmelden, um Ihr Postfach zu öffnen."});
+    const box = ce("div",{className:"card"}); box.appendChild(hint);
+    app.appendChild(box);
+    return;
+  }
+
   const postfachCard = listFormCard({
     title: "Nachrichten",
-    // wir zeigen, was der Listener (startPostfachRealtimeForUser) schon gefiltert hat
     list: STORE.postfach.slice().sort((a,b)=>(b.datum||"").localeCompare(a.datum||"")),
     renderLine: m => {
       const u = auth.currentUser;
-      const isOut = !!u && m.fromUid === u.uid;
+      const isOut = m.fromUid === u.uid;
       const dirBadge = `<span class="badge">${isOut ? "ausgehend" : "eingehend"}</span>`;
       const kopf = `
         <strong>${esc(m.betreff || "—")}</strong> ${dirBadge}
@@ -1258,21 +1325,15 @@ function renderPostfach(app){
     onSubmit: async (data) => {
       const u = auth.currentUser;
       if (!u) throw new Error("Nur mit Login sendbar.");
-
-      // Minimalvalidierung
       if (!data.toUid || !data.betreff || !data.text) {
         throw new Error("Bitte Empfänger-UID, Betreff und Nachricht ausfüllen.");
       }
-
-      // Nachricht speichern (passt zu den vorgeschlagenen Firestore-Regeln)
       await addDocTo(COL.postfach, {
         datum: data.datum || today(),
         betreff: data.betreff,
         text: data.text,
-
         fromUid: u.uid,
         fromName: u.displayName || (u.email||"").split("@")[0],
-
         toUid: data.toUid,
         toName: data.toName || ""
       });
