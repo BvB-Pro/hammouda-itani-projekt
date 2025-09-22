@@ -471,7 +471,7 @@ subscribe(ascByDate(COL.pflege_schmerz),  STORE.pflege.schmerz);
   // Kinderarzt
   subscribe(plain(COL.kid_patienten), STORE.kinderarzt.patienten);
   subscribe(ascByDate(COL.kid_besuche), STORE.kinderarzt.besuche);
-  subscribe(ascByDate(COL.kid_termine), STORE.kinderarzt.termine);
+  subscribe(ascByDate(COL.kid_termine), STORE.kinderarzt.termine);}
   
 
 function subscribe(refOrQuery, targetArr){
@@ -481,11 +481,10 @@ function subscribe(refOrQuery, targetArr){
     render();
   });
 }
+
 async function addDocTo(path, data){
   const u = auth.currentUser;
-  if (!u) {                       // ⬅️ NEU: Gäste dürfen nicht schreiben
-    throw new Error("Nur mit Login speicherbar (Gastmodus).");
-  }
+  if (!u) throw new Error("Nur mit Login speicherbar (Gastmodus).");
   const by = {
     uid: u.uid,
     username: (u.email || "").split("@")[0],
