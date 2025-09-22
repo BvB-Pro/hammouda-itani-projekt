@@ -262,6 +262,26 @@ function updateAuthUI(){
     if (act==="dark"){ document.documentElement.classList.toggle("dark"); saveUI({dark:document.documentElement.classList.contains("dark")}); }
     if (act==="reset") alert("Bei zentraler Speicherung gibt es hier keinen ‚Alles löschen‘-Button.");
   });
+   document.body.addEventListener("click", (e)=>{
+  const btn = e.target.closest("#userMenuItems button"); 
+  if (!btn) return;
+  const act = btn.dataset.action;
+
+  if (act === "postfach") {
+    switchTo("home");     // oder auf aktueller Seite bleiben
+    renderPostfach(qs("#app"));
+  }
+  if (act === "logout") {
+    logout();
+  }
+  if (act === "settings") {
+    alert("Einstellungen kommen noch 😊");
+  }
+  if (act === "pw-change") {
+    alert("Passwort ändern kommt noch 😊");
+  }
+});
+
 
   ensureLeadershipPanel();
 
@@ -315,6 +335,8 @@ function updateActiveTabs(){
 
 /* ====== Dropdown (nur „Mehr“) ====== */
 function setupDropdown(wrapperId, buttonId, menuId){
+   setupDropdown("userMenu","userBtn","userMenuItems");
+
   const wrap = qs("#"+wrapperId), btn=qs("#"+buttonId), menu=qs("#"+menuId);
   const close=()=>{wrap?.classList.remove("open");btn?.setAttribute("aria-expanded","false")};
   btn?.addEventListener("click",(e)=>{ e.stopPropagation(); wrap.classList.toggle("open"); btn.setAttribute("aria-expanded", wrap.classList.contains("open")?"true":"false"); if (wrap.classList.contains("open")) menu?.focus(); });
@@ -596,31 +618,7 @@ Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Mensc
     <p><strong>Stiftung:</strong> folgt</p>
   `;
   app.appendChild(mailBox);
-   // 3b) Postfach (lesen für alle, schreiben nur mit Login)
-const postfachCard = listFormCard({
-  title: "Postfach",
-  list: STORE.postfach.slice().sort((a,b)=> (b.datum||"").localeCompare(a.datum||"")),
-  renderLine: m => `
-    <strong>${esc(m.betreff || "—")}</strong> ${m.empf ? badge("an "+esc(m.empf)) : ""} <em>${esc(m.datum || "—")}</em>${byLine(m)}
-    <br><span class="muted">Von: ${esc(m.absender || "—")}</span>
-    <br>${esc(m.text || "—")}
-  `,
-  formHTML: `
-    ${input("Datum","datum",false,"date",today())}
-    ${input("Betreff","betreff",true)}
-    ${input("Empfänger (Team/Unternehmen)","empf",false,"text","z. B. Verwaltung / Stiftung")}
-    ${textarea("Nachricht","text")}
-  `,
-  onSubmit: data => {
-    // Absender vorbelegen: aktueller User-Name
-    const u = auth.currentUser;
-    const absender = u ? (u.displayName || (u.email||"").split("@")[0]) : "Gast";
-    return addDocTo(COL.postfach, { ...data, absender });
-  }
-});
-app.appendChild(postfachCard);
-
-
+   
   // 4) News-Text (aktualisiert)
   const news = ce("article",{className:"card", id:"foundationNote"});
   news.innerHTML = `
@@ -1208,6 +1206,82 @@ function renderKinderarzt(app){
     }));
   }));
 }
+
+function renderPostfach(app){
+  // Seite leeren
+  app.innerHTML = "";
+
+  // Info-Karte (optional, nützlich für Gäste)
+  const info = ce("div",{className:"card"});
+  info.innerHTML = `
+    <h3>Postfach</h3>
+    <p class="muted">
+      Private 1:1-Nachrichten zwischen Benutzerkonten. 
+      <strong>Gäste</strong> können Inhalte sehen, aber <strong>keine</strong> Nachrichten senden.
+    </p>
+    <hr>
+  `;
+  app.appendChild(info);
+
+  // Nachrichtenliste + Formular
+  const postfachCard = listFormCard({
+    title: "Nachrichten",
+    // wir zeigen, was der Listener (startPostfachRealtimeForUser) schon gefiltert hat
+    list: STORE.postfach.slice().sort((a,b)=>(b.datum||"").localeCompare(a.datum||"")),
+    renderLine: m => {
+      const u = auth.currentUser;
+      const isOut = !!u && m.fromUid === u.uid;
+      const dirBadge = `<span class="badge">${isOut ? "ausgehend" : "eingehend"}</span>`;
+      const kopf = `
+        <strong>${esc(m.betreff || "—")}</strong> ${dirBadge}
+        <em style="margin-left:.4rem">${esc(m.datum || "—")}</em>
+      `;
+      const meta = `
+        <span class="muted">
+          Von: ${esc(m.fromName || m.fromUid || "—")}
+          • An: ${esc(m.toName || m.toUid || "—")}
+        </span>
+      `;
+      const body = `<p>${esc(m.text || "—")}</p>`;
+      return `${kopf}<br>${meta}${body}<hr>`;
+    },
+    formHTML: `
+      ${input("Empfänger-UID","toUid",true,"text","")}
+      ${input("Empfänger-Name (optional)","toName",false,"text","")}
+      ${input("Betreff","betreff",true,"text","")}
+      ${textarea("Nachricht","text","")}
+      ${input("Datum","datum",false,"date",today())}
+      <div class="toolbar">
+        <button type="submit" class="btn primary">Senden</button>
+      </div>
+    `,
+    onSubmit: async (data) => {
+      const u = auth.currentUser;
+      if (!u) throw new Error("Nur mit Login sendbar.");
+
+      // Minimalvalidierung
+      if (!data.toUid || !data.betreff || !data.text) {
+        throw new Error("Bitte Empfänger-UID, Betreff und Nachricht ausfüllen.");
+      }
+
+      // Nachricht speichern (passt zu den vorgeschlagenen Firestore-Regeln)
+      await addDocTo(COL.postfach, {
+        datum: data.datum || today(),
+        betreff: data.betreff,
+        text: data.text,
+
+        fromUid: u.uid,
+        fromName: u.displayName || (u.email||"").split("@")[0],
+
+        toUid: data.toUid,
+        toName: data.toName || ""
+      });
+    }
+  });
+
+  app.appendChild(postfachCard);
+}
+
 
 /* ====== Gemeinsame Module ====== */
 function buildCommonModules(container, cfg){
