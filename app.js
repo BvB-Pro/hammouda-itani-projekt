@@ -362,8 +362,6 @@ async function initRealtime(){
   const ascByDate = (path) => query(collection(db, path), orderBy("datum","asc"));
   const plain     = (path) => collection(db, path);
 
-   import { where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-
 let stopPostfach = null;
 
 function startPostfachRealtimeForUser(u){
@@ -477,9 +475,6 @@ subscribe(ascByDate(COL.pflege_schmerz),  STORE.pflege.schmerz);
   subscribe(ascByDate(COL.kid_besuche), STORE.kinderarzt.besuche);
   subscribe(ascByDate(COL.kid_termine), STORE.kinderarzt.termine);
   
-   // Postfach
-  subscribe(ascByDate(COL.postfach), STORE.postfach);   // ⬅️ NEU
-}
 
 function subscribe(refOrQuery, targetArr){
   onSnapshot(refOrQuery, (snap)=>{
