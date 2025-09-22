@@ -295,7 +295,6 @@ updateAuthUI();
 // Bei Login/Logout neu schalten (und Daten „anwerfen“)
 onAuthStateChanged(auth, (u)=>{
   updateAuthUI();
-  startPostfachRealtimeForUser(u);   // << NEU
 
   if (u) {
     initRealtime?.();
