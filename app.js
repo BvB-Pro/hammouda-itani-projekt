@@ -7,10 +7,8 @@
 import { db, authReady, loginWithUsername, logout, auth } from "./firebase.js";
 import {
   collection, addDoc, onSnapshot, serverTimestamp,
-  query, orderBy, updateDoc, doc
+  query, orderBy, updateDoc, doc, where
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 
 /* ====== Seiten ====== */
@@ -296,12 +294,14 @@ updateAuthUI();
 onAuthStateChanged(auth, (u)=>{
   updateAuthUI();
 
-  if (u) {
-    initRealtime?.();
-    switchTo?.(CURRENT_PAGE);
-  } else {
-    // Logout: Postfach leeren und neu rendern
-    STORE.postfach.length = 0;
+if (u) {
+// Realtime-Collections laufen schon (initRealtime wurde einmalig nach authReady gestartet)
+startPostfachRealtimeForUser(u);   // ← Postfach-Listener pro User starten
+switchTo?.(CURRENT_PAGE);
+ } else {
+ // Logout: Postfach-Listener stoppen + UI leeren
+  startPostfachRealtimeForUser(null);
+  STORE.postfach.length = 0;
     render();
   }
 });
@@ -1285,7 +1285,9 @@ function renderPostfach(app){
 
   const postfachCard = listFormCard({
     title: "Nachrichten",
-    list: STORE.postfach.slice().sort((a,b)=>(b.datum||"").localeCompare(a.datum||"")),
+list: STORE.postfach
+  .slice()
+  .sort((a,b)=> (b._ts?.toMillis?.() ?? 0) - (a._ts?.toMillis?.() ?? 0) || (b.datum||"").localeCompare(a.datum||"")),
     renderLine: m => {
       const u = auth.currentUser;
       const isOut = m.fromUid === u.uid;
