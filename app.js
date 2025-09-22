@@ -9,6 +9,7 @@ import {
   collection, addDoc, onSnapshot, serverTimestamp,
   query, orderBy, updateDoc, doc, where
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 
 /* ====== Seiten ====== */
