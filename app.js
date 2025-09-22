@@ -357,15 +357,10 @@ function setupDropdown(wrapperId, buttonId, menuId){
 }
 
 
-/* ====== Realtime ====== */
-async function initRealtime(){
-  const ascByDate = (path) => query(collection(db, path), orderBy("datum","asc"));
-  const plain     = (path) => collection(db, path);
-
+// === Postfach: Nutzer-spezifisches Realtime ===
 let stopPostfach = null;
 
 function startPostfachRealtimeForUser(u){
-  // alte Listener stoppen
   if (typeof stopPostfach === "function") { stopPostfach(); stopPostfach = null; }
 
   if (!u) {
@@ -397,17 +392,20 @@ function startPostfachRealtimeForUser(u){
   ));
 
   function mergeAndRender(part){
-    // einfache Merge-Strategie: IDs-basierte Ersetzung
     const map = new Map(STORE.postfach.map(m=>[m.id,m]));
     part.forEach(m=> map.set(m.id,m));
     STORE.postfach.length = 0;
     map.forEach(v=> STORE.postfach.push(v));
-    // optional: hier schon sortieren – render sortiert aber ebenfalls
     render();
   }
 
   stopPostfach = ()=> unsubs.forEach(fn=>fn());
 }
+
+/* ====== Realtime ====== */
+async function initRealtime(){
+  const ascByDate = (path) => query(collection(db, path), orderBy("datum","asc"));
+  const plain     = (path) => collection(db, path);
 
 
   // Kita
