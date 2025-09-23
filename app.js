@@ -323,36 +323,39 @@ function updateAuthUI(){
   ensureLeadershipPanel();
 
   await authReady;
-  // Nach Auth-Initialisierung UI setzen
-updateAuthUI();
+ // 🔐 Auth-Änderungen verdrahten (⟵ diesen ganzen Block ersetzen)
+let authUnsubs = []; // aktive Listener für die aktuelle Session
 
-// Bei Login/Logout neu schalten (und Daten „anwerfen“)
-onAuthStateChanged(auth, (u)=>{
+onAuthStateChanged(auth, (u) => {
+  // Alte Listener (z. B. vom vorherigen User) schließen
+  authUnsubs.forEach(fn => { try { fn(); } catch(_){} });
+  authUnsubs = [];
+
   updateAuthUI();
 
   if (u) {
     ensureUserProfile(u);
     startPostfachRealtimeForUser(u);
-    switchTo?.(CURRENT_PAGE);
+    switchTo(CURRENT_PAGE);
 
-    // 🔔 Unread-Counter Listener starten ...
-    unsubs.push(onSnapshot(
-      query(collection(db, COL.postfach),
-        where("toUid","==", u.uid),
-        where("read","==", false)
-      ),
-      snap=>{
-        const unread = snap.size || 0;
-        setUnreadCount(unread);
-      }
-    ));
+    // 🔔 Unread-Counter (nur empfangene & ungelesene)
+    const qUnread = query(
+      collection(db, COL.postfach),
+      where("toUid", "==", u.uid),
+      where("read", "==", false)
+    );
+    const unsubUnread = onSnapshot(
+      qUnread,
+      snap => setUnreadCount(snap.size || 0),
+      err => console.error("Unread listener error:", err)
+    );
+    authUnsubs.push(unsubUnread);
+
   } else {
-    // Logout: Postfach-Listener stoppen + UI leeren
+    // Logout: Postfach stoppen + UI bereinigen + Badge nullen
     startPostfachRealtimeForUser(null);
     STORE.postfach.length = 0;
     render();
-
-    // 🔔 Unread-Zähler sicher zurücksetzen
     setUnreadCount(0);
   }
 });
@@ -1555,7 +1558,11 @@ filterCard.querySelector("#markAllReadBtn").style.display = (MAIL_FILTER==="inbo
         uploaded.push({ url, name: file.name, type: "application/pdf", path });
       }
       if (uploaded.length){
-        await updateDoc(msgRef, { attachments: uploaded, _ts: serverTimestamp() });
+       await updateDoc(doc(db, COL.postfach, msgRef.id), {
+  attachments: uploaded,
+  _ts: serverTimestamp()
+});
+
       }
     }
   }
