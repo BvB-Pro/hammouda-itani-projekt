@@ -330,31 +330,33 @@ updateAuthUI();
 onAuthStateChanged(auth, (u)=>{
   updateAuthUI();
 
-if (u) {
-// Realtime-Collections laufen schon (initRealtime wurde einmalig nach authReady gestartet)
-    // Username/DisplayName unter tenants/<TENANT_ID>/users/<uid> ablegen
- ensureUserProfile(u);
-startPostfachRealtimeForUser(u);   // ← Postfach-Listener pro User starten
-switchTo?.(CURRENT_PAGE);
- } else {
- // Logout: Postfach-Listener stoppen + UI leeren
-  startPostfachRealtimeForUser(null);
-  STORE.postfach.length = 0;
-    render();
-  }
-     // 🔔 Unread-Counter (alle empfangenen, die noch nicht gelesen sind)
-  unsubs.push(onSnapshot(
-    query(collection(db, COL.postfach),
-      where("toUid","==", u.uid),
-      where("read","==", false) // <-- Feld kommt gleich in 2.3
-    ),
-    snap=>{
-      const unread = snap.size || 0;
-      setUnreadCount(unread);
-    }
-  ));
+  if (u) {
+    ensureUserProfile(u);
+    startPostfachRealtimeForUser(u);
+    switchTo?.(CURRENT_PAGE);
 
+    // 🔔 Unread-Counter Listener starten ...
+    unsubs.push(onSnapshot(
+      query(collection(db, COL.postfach),
+        where("toUid","==", u.uid),
+        where("read","==", false)
+      ),
+      snap=>{
+        const unread = snap.size || 0;
+        setUnreadCount(unread);
+      }
+    ));
+  } else {
+    // Logout: Postfach-Listener stoppen + UI leeren
+    startPostfachRealtimeForUser(null);
+    STORE.postfach.length = 0;
+    render();
+
+    // 🔔 Unread-Zähler sicher zurücksetzen
+    setUnreadCount(0);
+  }
 });
+
 async function ensureUserProfile(u){
   if (!u) return;
   const username = (u.email || "").split("@")[0].toLowerCase();
@@ -420,15 +422,15 @@ function setupDropdown(wrapperId, buttonId, menuId){
   document.addEventListener("keydown",(e)=>{ if (e.key==="Escape") close(); });
 }
 
-
-// === Postfach: Nutzer-spezifisches Realtime ===
 let stopPostfach = null;
 
 function startPostfachRealtimeForUser(u){
   if (typeof stopPostfach === "function") { stopPostfach(); stopPostfach = null; }
 
+  // Bei Logout: Postfach leeren & Badges auf 0
   if (!u) {
     STORE.postfach.length = 0;
+    setUnreadCount(0);
     render();
     return;
   }
@@ -455,6 +457,12 @@ function startPostfachRealtimeForUser(u){
     }
   ));
 
+  // 🔔 Ungelesene (Badge)
+  unsubs.push(onSnapshot(
+    query(collection(db, COL.postfach), where("toUid","==", u.uid), where("read","==", false)),
+    snap=> setUnreadCount(snap.size || 0)
+  ));
+
   function mergeAndRender(part){
     const map = new Map(STORE.postfach.map(m=>[m.id,m]));
     part.forEach(m=> map.set(m.id,m));
@@ -465,6 +473,7 @@ function startPostfachRealtimeForUser(u){
 
   stopPostfach = ()=> unsubs.forEach(fn=>fn());
 }
+
 
 /* ====== Realtime ====== */
 async function initRealtime(){
@@ -1326,6 +1335,7 @@ function renderKinderarzt(app){
   }));
 }
 
+//Postfach
 function renderPostfach(app){
   app.innerHTML = "";
 
@@ -1349,7 +1359,11 @@ function renderPostfach(app){
 
   // --- Filter-Zustand: "inbox" oder "sent"
   let MAIL_FILTER = localStorage.getItem("postfachFilter") || "inbox";
-  const setFilter = (f)=>{ MAIL_FILTER=f; localStorage.setItem("postfachFilter", f); renderList(); };
+  const setFilter = (f)=>{ MAIL_FILTER=f; localStorage.setItem("postfachFilter", f); renderList(); 
+//Button nur zeigen, wenn "inbox"
+      const markBtn = document.querySelector("#markAllReadBtn");
+  if (markBtn) markBtn.style.display = (MAIL_FILTER==="inbox") ? "" : "none";
+};
 
   // --- UI: Filterleiste
   const filterCard = ce("div",{className:"card"});
@@ -1361,6 +1375,9 @@ function renderPostfach(app){
       <button type="button" class="btn" id="markAllReadBtn" title="Alle sichtbaren als gelesen markieren">Alle als gelesen</button>
     </div>
   `;
+   // Anfangs direkt korrekt setzen:
+filterCard.querySelector("#markAllReadBtn").style.display = (MAIL_FILTER==="inbox") ? "" : "none";
+
   filterCard.addEventListener("click",(e)=>{
     const p = e.target.closest(".pill"); if (!p) return;
     [...filterCard.querySelectorAll(".pill")].forEach(x=>x.classList.remove("active"));
@@ -1393,8 +1410,6 @@ function renderPostfach(app){
       <label>PDF-Anhänge (optional)
         <input name="pdfs" type="file" accept="application/pdf" multiple>
       </label>
-            ${input("PDF-Anhang (optional)","pdf",false,"file","",{"accept":"application/pdf"})}
-
       ${input("Datum","datum",false,"date",today())}
       <div class="toolbar">
         <button type="submit" class="btn primary">Senden</button>
@@ -1421,6 +1436,7 @@ function renderPostfach(app){
       listHost.appendChild(ce("p",{className:"muted",textContent:"Keine Nachrichten."}));
       return;
     }
+    
 
     items.forEach(m=>{
       const wrap = ce("div");
