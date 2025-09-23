@@ -1537,47 +1537,45 @@ filterCard.querySelector("#markAllReadBtn").style.display = (MAIL_FILTER==="inbo
       }
     });
 
-    // Mehrfach-PDFs hochladen
-    const formEl = postfachCard.querySelector("form");
-    const files = formEl?.querySelector('input[name="pdfs"]')?.files || [];
-    if (files.length){
-      const uploaded = [];
-      for (const file of files){
-        if (file.type !== "application/pdf") continue;
-        const safeName = file.name.replace(/[^\w\-.]+/g, "_");
-        const path = `tenants/${TENANT_ID}/postfach/${msgRef.id}/${safeName}`;
+// Mehrfach-PDFs hochladen
+const formEl = postfachCard.querySelector("form");
+const files = formEl?.querySelector('input[name="pdfs"]')?.files || [];
 
-         const safeName = file.name.replace(/[^\w.\-]+/g, "_");
-const path = `tenants/${TENANT_ID}/postfach/${msgRef.id}/${safeName}`;
-const r = sRef(storage, path);
+if (files.length) {
+  const uploaded = [];
 
-try {
-  await uploadBytes(r, file, { contentType: "application/pdf" });
-  console.log("✅ UPLOAD erlaubt:", path);
-} catch (e) {
-  console.error("❌ UPLOAD blockiert:", path, e);
-  alert("Upload fehlgeschlagen (create-Regel): " + e.message);
-  return; // keine URL holen, wenn Upload schon blockt
-}
+  for (const file of files) {
+    if (file.type !== "application/pdf") continue;
 
-try {
-  const url = await getDownloadURL(r);
-  console.log("✅ DOWNLOAD erlaubt:", url);
-} catch (e) {
-  console.error("❌ DOWNLOAD blockiert:", path, e);
-  alert("Download fehlgeschlagen (read-Regel): " + e.message);
-}
+    const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+    const path = `tenants/${TENANT_ID}/postfach/${msgRef.id}/${safeName}`;
+    const r = sRef(storage, path);
 
-      }
-      if (uploaded.length){
-       await updateDoc(doc(db, COL.postfach, msgRef.id), {
-  attachments: uploaded,
-  _ts: serverTimestamp()
-});
+    try {
+      // create
+      await uploadBytes(r, file, { contentType: "application/pdf" });
+      console.log("✅ UPLOAD erlaubt:", path);
 
-      }
+      // read
+      const url = await getDownloadURL(r);
+      console.log("✅ DOWNLOAD erlaubt:", url);
+
+      // wichtig: Ergebnis sammeln!
+      uploaded.push({ name: safeName, url });
+    } catch (e) {
+      console.error("❌ Storage Fehler bei", path, e);
+      alert("Speichern fehlgeschlagen: " + (e.message || e.code || e));
+      // optional: continue;  // versuche nächste Datei weiter hochzuladen
     }
   }
+
+  if (uploaded.length) {
+    await updateDoc(doc(db, COL.postfach, msgRef.id), {
+      attachments: uploaded,
+      _ts: serverTimestamp(),
+    });
+  }
+}
 
   // Erst-Render & wenn Daten kommen
   renderList();
