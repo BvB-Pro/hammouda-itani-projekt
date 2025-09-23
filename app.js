@@ -1538,36 +1538,48 @@ filterCard.querySelector("#markAllReadBtn").style.display = (MAIL_FILTER==="inbo
     });
 
 // Mehrfach-PDFs hochladen
+// Mehrfach-PDFs hochladen
 const formEl = postfachCard.querySelector("form");
 const files = formEl?.querySelector('input[name="pdfs"]')?.files || [];
 
-if (files.length) {
-  const uploaded = [];
+try {
+  if (files.length) {
+    const uploaded = [];
 
-  for (const file of files) {
-    if (file.type !== "application/pdf") continue;
+    for (const file of files) {
+      if (file.type !== "application/pdf") continue;
 
-    const safeName = file.name.replace(/[^\w.\-]+/g, "_");
-    const path = `tenants/${TENANT_ID}/postfach/${msgRef.id}/${safeName}`;
-    const r = sRef(storage, path);
+      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+      const path = `tenants/${TENANT_ID}/postfach/${msgRef.id}/${safeName}`;
+      const r = sRef(storage, path);
 
-    await uploadBytes(r, file, {
-      contentType: "application/pdf",
-      // WICHTIG: damit deine Storage-Rules auf Absender/Empfänger prüfen können
-      customMetadata: { fromUid: u.uid, toUid }
-    });
+      await uploadBytes(r, file, {
+        contentType: "application/pdf",
+        customMetadata: { fromUid: u.uid, toUid }
+      });
 
-    const url = await getDownloadURL(r);
-    uploaded.push({ name: safeName, url });
+      const url = await getDownloadURL(r);
+      uploaded.push({ name: safeName, url });
+    }
+
+    if (uploaded.length) {
+      await updateDoc(doc(db, COL.postfach, msgRef.id), {
+        attachments: uploaded,
+        _ts: serverTimestamp(),
+      });
+
+      // ⤵︎ sofort im lokalen STORE aktualisieren (UI zeigt es direkt)
+      const idx = STORE.postfach.findIndex(m => m.id === msgRef.id);
+      if (idx !== -1) {
+        STORE.postfach[idx] = { ...STORE.postfach[idx], attachments: uploaded };
+      }
+    }
   }
-
-  if (uploaded.length) {
-    await updateDoc(doc(db, COL.postfach, msgRef.id), {
-      attachments: uploaded,
-      _ts: serverTimestamp(),
-    });
-  }
+} catch (e) {
+  console.error("Storage/Attachment error:", e);
+  alert("Anhang konnte nicht vollständig gespeichert werden: " + (e.message || e.code || e));
 }
+
 
 
   // Erst-Render & wenn Daten kommen
