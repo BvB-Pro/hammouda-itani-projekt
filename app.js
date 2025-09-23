@@ -460,12 +460,6 @@ function startPostfachRealtimeForUser(u){
     }
   ));
 
-  // 🔔 Ungelesene (Badge)
-  unsubs.push(onSnapshot(
-    query(collection(db, COL.postfach), where("toUid","==", u.uid), where("read","==", false)),
-    snap=> setUnreadCount(snap.size || 0)
-  ));
-
   function mergeAndRender(part){
     const map = new Map(STORE.postfach.map(m=>[m.id,m]));
     part.forEach(m=> map.set(m.id,m));
