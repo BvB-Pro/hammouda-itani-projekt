@@ -194,6 +194,39 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (ui.dark === true) document.documentElement.classList.add("dark");
 setupDropdown("moreDropdown","moreBtn","moreMenu");
 setupDropdown("userMenu","userBtn","userMenuItems");
+   function ensureNotificationBadges(){
+  // 1) Benutzer-Button (oben rechts)
+  const userBtn = document.getElementById("userBtn");
+  if (userBtn && !userBtn.querySelector(".noti-badge")) {
+    const b = document.createElement("span");
+    b.className = "noti-badge noti-hide";
+    b.id = "badgeUserBtn";
+    b.textContent = "0";
+    userBtn.appendChild(b);
+  }
+  // 2) Eintrag "Postfach" im Dropdown
+  const postfachBtn = document.querySelector('#userMenuItems button[data-action="postfach"]');
+  if (postfachBtn && !postfachBtn.querySelector(".noti-badge")) {
+    const b = document.createElement("span");
+    b.className = "noti-badge noti-hide";
+    b.id = "badgeMenuPostfach";
+    b.textContent = "0";
+    postfachBtn.appendChild(b);
+  }
+}
+ensureNotificationBadges();
+
+// kleine Helferfunktion zum Setzen
+function setUnreadCount(n){
+  const apply = (el)=> {
+    if (!el) return;
+    el.textContent = String(n);
+    el.classList.toggle("noti-hide", n<=0);
+  };
+  apply(document.getElementById("badgeUserBtn"));
+  apply(document.getElementById("badgeMenuPostfach"));
+}
+
 
   buildCompanyTabs();
 
@@ -307,6 +340,18 @@ switchTo?.(CURRENT_PAGE);
   STORE.postfach.length = 0;
     render();
   }
+     // 🔔 Unread-Counter (alle empfangenen, die noch nicht gelesen sind)
+  unsubs.push(onSnapshot(
+    query(collection(db, COL.postfach),
+      where("toUid","==", u.uid),
+      where("read","==", false) // <-- Feld kommt gleich in 2.3
+    ),
+    snap=>{
+      const unread = snap.size || 0;
+      setUnreadCount(unread);
+    }
+  ));
+
 });
 async function ensureUserProfile(u){
   if (!u) return;
@@ -320,6 +365,8 @@ async function ensureUserProfile(u){
     },
     { merge: true }
   );
+   setUnreadCount(0);
+
 }
 
 
@@ -1291,7 +1338,6 @@ function renderPostfach(app){
   `;
   app.appendChild(info);
 
-  // 🚧 Gäste bekommen keine Nachrichtenliste (streng privat)
   if (!auth.currentUser) {
     const hint = ce("p",{className:"muted", textContent:"Bitte anmelden, um Ihr Postfach zu öffnen."});
     const box = ce("div",{className:"card"}); box.appendChild(hint);
@@ -1299,18 +1345,87 @@ function renderPostfach(app){
     return;
   }
 
+  // --- Filter-Zustand: "inbox" oder "sent"
+  let MAIL_FILTER = localStorage.getItem("postfachFilter") || "inbox";
+  const setFilter = (f)=>{ MAIL_FILTER=f; localStorage.setItem("postfachFilter", f); renderList(); };
+
+  // --- UI: Filterleiste
+  const filterCard = ce("div",{className:"card"});
+  filterCard.innerHTML = `
+    <div class="filterbar" role="tablist" aria-label="Postfach-Filter">
+      <button type="button" class="pill ${MAIL_FILTER==="inbox"?"active":""}" data-filter="inbox">Eingang</button>
+      <button type="button" class="pill ${MAIL_FILTER==="sent"?"active":""}" data-filter="sent">Gesendet</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" id="markAllReadBtn" title="Alle sichtbaren als gelesen markieren">Alle als gelesen</button>
+    </div>
+  `;
+  filterCard.addEventListener("click",(e)=>{
+    const p = e.target.closest(".pill"); if (!p) return;
+    [...filterCard.querySelectorAll(".pill")].forEach(x=>x.classList.remove("active"));
+    p.classList.add("active");
+    setFilter(p.dataset.filter);
+  });
+  filterCard.querySelector("#markAllReadBtn").addEventListener("click", async ()=>{
+    const u = auth.currentUser; if (!u) return;
+    // Sichtbare ungelesene Nachrichten (inbox only sinnvoll)
+    const visible = STORE.postfach.filter(m=>{
+      const isInbox = m.toUid===u.uid;
+      const pass = MAIL_FILTER==="inbox" ? isInbox : (m.fromUid===u.uid);
+      return pass && m.read===false;
+    });
+    try{
+      await Promise.all(visible.map(m=> updateDoc(doc(db, COL.postfach, m.id), { read:true, readAt: serverTimestamp(), _ts: serverTimestamp() })));
+    }catch(err){ alert("Konnte nicht alles markieren: " + (err.message||err)); }
+  });
+  app.appendChild(filterCard);
+
+  // --- Formular: Mehrfachanhänge + Username-Empfänger
   const postfachCard = listFormCard({
     title: "Nachrichten",
-list: STORE.postfach
-  .slice()
-  .sort((a,b)=> (b._ts?.toMillis?.() ?? 0) - (a._ts?.toMillis?.() ?? 0) || (b.datum||"").localeCompare(a.datum||"")),
-    renderLine: m => {
-      const u = auth.currentUser;
-      const isOut = m.fromUid === u.uid;
-      const dirBadge = `<span class="badge">${isOut ? "ausgehend" : "eingehend"}</span>`;
+    list: [], // Rendering übernehmen wir selbst
+    renderLine(){ return ""; }, // ungenutzt
+    formHTML: `
+      ${input("Empfänger (Benutzername)","toUser",true,"text","")}
+      ${input("Betreff","betreff",true,"text","")}
+      ${textarea("Nachricht","text","")}
+      <label>PDF-Anhänge (optional)
+        <input name="pdfs" type="file" accept="application/pdf" multiple>
+      </label>
+      ${input("Datum","datum",false,"date",today())}
+      <div class="toolbar">
+        <button type="submit" class="btn primary">Senden</button>
+      </div>
+    `,
+    onSubmit: sendMessageWithAttachments
+  });
+
+  // Wir hängen unten unsere eigene Liste an
+  const listHost = ce("div");
+  postfachCard.appendChild(listHost);
+  app.appendChild(postfachCard);
+
+  // --- Renderer für Nachrichtenliste (mit Filter + Toggle)
+  function renderList(){
+    const u = auth.currentUser; if (!u) return;
+    const items = STORE.postfach
+      .slice()
+      .filter(m => MAIL_FILTER==="inbox" ? (m.toUid===u.uid) : (m.fromUid===u.uid))
+      .sort((a,b)=> (b._ts?.toMillis?.() ?? 0) - (a._ts?.toMillis?.() ?? 0) || (b.datum||"").localeCompare(a.datum||""));
+    listHost.innerHTML = "";
+
+    if (!items.length){
+      listHost.appendChild(ce("p",{className:"muted",textContent:"Keine Nachrichten."}));
+      return;
+    }
+
+    items.forEach(m=>{
+      const wrap = ce("div");
+      const isUnread = m.read===false && m.toUid===u.uid;
+      const dirBadge = `<span class="badge">${m.fromUid===u.uid ? "ausgehend" : "eingehend"}</span>`;
       const kopf = `
         <strong>${esc(m.betreff || "—")}</strong> ${dirBadge}
         <em style="margin-left:.4rem">${esc(m.datum || "—")}</em>
+        ${isUnread ? `<span class="badge" style="background:#e11d48">neu</span>` : ""}
       `;
       const meta = `
         <span class="muted">
@@ -1319,51 +1434,115 @@ list: STORE.postfach
         </span>
       `;
       const body = `<p>${esc(m.text || "—")}</p>`;
-      return `${kopf}<br>${meta}${body}<hr>`;
-    },
-    formHTML: `
-    ${input("Empfänger (Benutzername)","toUser",true,"text","")}
-      ${input("Betreff","betreff",true,"text","")}
-      ${textarea("Nachricht","text","")}
-      ${input("Datum","datum",false,"date",today())}
-      <div class="toolbar">
-        <button type="submit" class="btn primary">Senden</button>
-      </div>
-    `,
-    onSubmit: async (data) => {
-      const u = auth.currentUser;
-      if (!u) throw new Error("Nur mit Login sendbar.");
 
-       if (!data.toUser || !data.betreff || !data.text) {
-   throw new Error("Bitte Empfänger, Betreff und Nachricht ausfüllen.");
+      // Mehrfach-Anhänge
+      let attaches = "";
+      if (Array.isArray(m.attachments) && m.attachments.length){
+        const lis = m.attachments.map(a =>
+          `<li>📎 <a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name||"Anhang")}</a></li>`
+        ).join("");
+        attaches = `<ul class="attach-list">${lis}</ul>`;
+      } else if (m.attachment?.url) {
+        // Backward-compat (falls schon Einzelanhang existiert)
+        attaches = `<ul class="attach-list"><li>📎 <a href="${esc(m.attachment.url)}" target="_blank" rel="noopener">${esc(m.attachment.name||"Anhang")}</a></li></ul>`;
+      }
+
+      // Toggle gelesen/ungelesen nur für Teilnehmer
+      const canToggle = (u.uid===m.toUid || u.uid===m.fromUid);
+      const toggleBtn = canToggle
+        ? `<button class="btn ghost toggle-read" data-id="${m.id}" data-next="${m.read? "false" : "true"}">${m.read ? "Als ungelesen markieren" : "Als gelesen markieren"}</button>`
+        : "";
+
+      wrap.innerHTML = `${kopf}<br>${meta}${body}${attaches}
+        <div class="toolbar">
+          ${toggleBtn}
+        </div>
+        <hr>`;
+      listHost.appendChild(wrap);
+    });
   }
 
-  // Username normalisieren (klein) und UID in users-Collection suchen
-  const wanted = String(data.toUser).trim().toLowerCase();
-  const qSnap = await getDocs(
-    query(collection(db, base("users")), where("username","==", wanted))
-  );
-
-         if (qSnap.empty) throw new Error("Empfänger nicht gefunden.");
-  const userDoc = qSnap.docs[0];
-  const toUid = userDoc.id;
-  const toName = userDoc.data()?.displayName || wanted;
-
-  await addDocTo(COL.postfach, {
-    datum: data.datum || today(),
-    betreff: data.betreff,
-    text: data.text,
-    fromUid: u.uid,
-    fromName: u.displayName || (u.email||"").split("@")[0],
-    toUid,
-    toName
-  });
+  // Delegation: Toggle gelesen/ungelesen
+  postfachCard.addEventListener("click", async (e)=>{
+    const btn = e.target.closest(".toggle-read"); if (!btn) return;
+    const id = btn.dataset.id;
+    const next = btn.dataset.next === "true";
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = "Aktualisiere…";
+    try{
+      await updateDoc(doc(db, COL.postfach, id), {
+        read: next,
+        readAt: next ? serverTimestamp() : null,
+        _ts: serverTimestamp()
+      });
+    }catch(err){
+      alert("Konnte Status nicht ändern: " + (err.message||err));
+    }finally{
+      btn.disabled = false; btn.textContent = orig;
     }
   });
 
-  app.appendChild(postfachCard);
-}
+  // Senden mit Mehrfach-Anhängen
+  async function sendMessageWithAttachments(formData){
+    const u = auth.currentUser;
+    if (!u) throw new Error("Nur mit Login sendbar.");
 
+    if (!formData.toUser || !formData.betreff || !formData.text) {
+      throw new Error("Bitte Empfänger, Betreff und Nachricht ausfüllen.");
+    }
+
+    // Username → UID
+    const wanted = String(formData.toUser).trim().toLowerCase();
+    const qSnap = await getDocs(
+      query(collection(db, base("users")), where("username","==", wanted))
+    );
+    if (qSnap.empty) throw new Error("Empfänger nicht gefunden.");
+    const userDoc = qSnap.docs[0];
+    const toUid = userDoc.id;
+    const toName = userDoc.data()?.displayName || wanted;
+
+    // Nachricht ohne Attachments anlegen (ID bekommen)
+    const msgRef = await addDoc(collection(db, COL.postfach), {
+      datum: formData.datum || today(),
+      betreff: formData.betreff,
+      text: formData.text,
+      fromUid: u.uid,
+      fromName: u.displayName || (u.email||"").split("@")[0],
+      toUid,
+      toName,
+      read: false,
+      attachments: [],
+      _ts: serverTimestamp(),
+      _by:{
+        uid: u.uid,
+        username: (u.email||"").split("@")[0],
+        displayName: u.displayName || (u.email||"").split("@")[0]
+      }
+    });
+
+    // Mehrfach-PDFs hochladen
+    const formEl = postfachCard.querySelector("form");
+    const files = formEl?.querySelector('input[name="pdfs"]')?.files || [];
+    if (files.length){
+      const uploaded = [];
+      for (const file of files){
+        if (file.type !== "application/pdf") continue;
+        const safeName = file.name.replace(/[^\w\-.]+/g, "_");
+        const path = `tenants/${TENANT_ID}/postfach/${msgRef.id}/${safeName}`;
+        const r = sRef(storage, path);
+        await uploadBytes(r, file, { contentType: "application/pdf" });
+        const url = await getDownloadURL(r);
+        uploaded.push({ url, name: file.name, type: "application/pdf", path });
+      }
+      if (uploaded.length){
+        await updateDoc(msgRef, { attachments: uploaded, _ts: serverTimestamp() });
+      }
+    }
+  }
+
+  // Erst-Render & wenn Daten kommen
+  renderList();
+}
 
 /* ====== Gemeinsame Module ====== */
 function buildCommonModules(container, cfg){
