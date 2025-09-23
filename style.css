@@ -254,4 +254,13 @@ td a:hover{text-decoration:underline}
   color: #e11d48; /* Rot wie Danger */
   margin-right: 12px;
 }
+/* Badge-Blase an Buttons/Links */
+.noti-badge{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:16px; height:16px; padding:0 5px;
+  font: 600 11px/16px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color:#fff; background:#e11d48; border-radius:10px;
+  margin-left:8px;
+}
+.noti-hide{ display:none !important; }
 
