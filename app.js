@@ -10,6 +10,8 @@ import {
   query, orderBy, updateDoc, doc, where, getDocs, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { ref as sRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+import { storage } from "./firebase.js";
 
 
 /* ====== Seiten ====== */
@@ -1391,6 +1393,8 @@ function renderPostfach(app){
       <label>PDF-Anhänge (optional)
         <input name="pdfs" type="file" accept="application/pdf" multiple>
       </label>
+            ${input("PDF-Anhang (optional)","pdf",false,"file","",{"accept":"application/pdf"})}
+
       ${input("Datum","datum",false,"date",today())}
       <div class="toolbar">
         <button type="submit" class="btn primary">Senden</button>
