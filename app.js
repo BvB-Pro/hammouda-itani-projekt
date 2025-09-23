@@ -1546,12 +1546,28 @@ filterCard.querySelector("#markAllReadBtn").style.display = (MAIL_FILTER==="inbo
         if (file.type !== "application/pdf") continue;
         const safeName = file.name.replace(/[^\w\-.]+/g, "_");
         const path = `tenants/${TENANT_ID}/postfach/${msgRef.id}/${safeName}`;
-        const r = sRef(storage, path);
- // beim Upload: den echten Typ durchreichen
-await uploadBytes(r, file, { contentType: file.type || "application/pdf" });
 
-        const url = await getDownloadURL(r);
-        uploaded.push({ url, name: file.name, type: "application/pdf", path });
+         const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+const path = `tenants/${TENANT_ID}/postfach/${msgRef.id}/${safeName}`;
+const r = sRef(storage, path);
+
+try {
+  await uploadBytes(r, file, { contentType: "application/pdf" });
+  console.log("✅ UPLOAD erlaubt:", path);
+} catch (e) {
+  console.error("❌ UPLOAD blockiert:", path, e);
+  alert("Upload fehlgeschlagen (create-Regel): " + e.message);
+  return; // keine URL holen, wenn Upload schon blockt
+}
+
+try {
+  const url = await getDownloadURL(r);
+  console.log("✅ DOWNLOAD erlaubt:", url);
+} catch (e) {
+  console.error("❌ DOWNLOAD blockiert:", path, e);
+  alert("Download fehlgeschlagen (read-Regel): " + e.message);
+}
+
       }
       if (uploaded.length){
        await updateDoc(doc(db, COL.postfach, msgRef.id), {
