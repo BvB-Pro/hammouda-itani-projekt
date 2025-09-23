@@ -1547,7 +1547,9 @@ filterCard.querySelector("#markAllReadBtn").style.display = (MAIL_FILTER==="inbo
         const safeName = file.name.replace(/[^\w\-.]+/g, "_");
         const path = `tenants/${TENANT_ID}/postfach/${msgRef.id}/${safeName}`;
         const r = sRef(storage, path);
-        await uploadBytes(r, file, { contentType: "application/pdf" });
+ // beim Upload: den echten Typ durchreichen
+await uploadBytes(r, file, { contentType: file.type || "application/pdf" });
+
         const url = await getDownloadURL(r);
         uploaded.push({ url, name: file.name, type: "application/pdf", path });
       }
