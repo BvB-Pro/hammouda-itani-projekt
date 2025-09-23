@@ -4,6 +4,8 @@ import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+
 
 // ⬇️ Hier DEINE echten Werte aus der Console einfügen
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -18,6 +20,7 @@ const firebaseConfig = {
 };
 
 const app  = initializeApp(firebaseConfig);
+export const storage = getStorage(app);
 export const db   = getFirestore(app);
 export const auth = getAuth(app);
 
