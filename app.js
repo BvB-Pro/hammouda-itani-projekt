@@ -1551,22 +1551,14 @@ if (files.length) {
     const path = `tenants/${TENANT_ID}/postfach/${msgRef.id}/${safeName}`;
     const r = sRef(storage, path);
 
-    try {
-      // create
-      await uploadBytes(r, file, { contentType: "application/pdf" });
-      console.log("✅ UPLOAD erlaubt:", path);
+    await uploadBytes(r, file, {
+      contentType: "application/pdf",
+      // WICHTIG: damit deine Storage-Rules auf Absender/Empfänger prüfen können
+      customMetadata: { fromUid: u.uid, toUid }
+    });
 
-      // read
-      const url = await getDownloadURL(r);
-      console.log("✅ DOWNLOAD erlaubt:", url);
-
-      // wichtig: Ergebnis sammeln!
-      uploaded.push({ name: safeName, url });
-    } catch (e) {
-      console.error("❌ Storage Fehler bei", path, e);
-      alert("Speichern fehlgeschlagen: " + (e.message || e.code || e));
-      // optional: continue;  // versuche nächste Datei weiter hochzuladen
-    }
+    const url = await getDownloadURL(r);
+    uploaded.push({ name: safeName, url });
   }
 
   if (uploaded.length) {
@@ -1577,9 +1569,10 @@ if (files.length) {
   }
 }
 
+
   // Erst-Render & wenn Daten kommen
   renderList();
-
+}
 
 /* ====== Gemeinsame Module ====== */
 function buildCommonModules(container, cfg){
