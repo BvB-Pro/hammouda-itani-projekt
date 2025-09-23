@@ -7,7 +7,7 @@
 import { db, authReady, loginWithUsername, logout, auth } from "./firebase.js";
 import {
   collection, addDoc, onSnapshot, serverTimestamp,
-  query, orderBy, updateDoc, doc, where
+  query, orderBy, updateDoc, doc, where, getDocs, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
@@ -297,6 +297,8 @@ onAuthStateChanged(auth, (u)=>{
 
 if (u) {
 // Realtime-Collections laufen schon (initRealtime wurde einmalig nach authReady gestartet)
+    // Username/DisplayName unter tenants/<TENANT_ID>/users/<uid> ablegen
+ ensureUserProfile(u);
 startPostfachRealtimeForUser(u);   // ← Postfach-Listener pro User starten
 switchTo?.(CURRENT_PAGE);
  } else {
@@ -306,6 +308,19 @@ switchTo?.(CURRENT_PAGE);
     render();
   }
 });
+async function ensureUserProfile(u){
+  if (!u) return;
+  const username = (u.email || "").split("@")[0].toLowerCase();
+  await setDoc(
+    doc(db, base("users"), u.uid),
+    {
+      username,
+      displayName: u.displayName || username,
+      _ts: serverTimestamp()
+    },
+    { merge: true }
+  );
+}
 
 
   await initRealtime().catch(console.warn);
@@ -1307,8 +1322,7 @@ list: STORE.postfach
       return `${kopf}<br>${meta}${body}<hr>`;
     },
     formHTML: `
-      ${input("Empfänger-UID","toUid",true,"text","")}
-      ${input("Empfänger-Name (optional)","toName",false,"text","")}
+    ${input("Empfänger (Benutzername)","toUser",true,"text","")}
       ${input("Betreff","betreff",true,"text","")}
       ${textarea("Nachricht","text","")}
       ${input("Datum","datum",false,"date",today())}
@@ -1319,18 +1333,31 @@ list: STORE.postfach
     onSubmit: async (data) => {
       const u = auth.currentUser;
       if (!u) throw new Error("Nur mit Login sendbar.");
-      if (!data.toUid || !data.betreff || !data.text) {
-        throw new Error("Bitte Empfänger-UID, Betreff und Nachricht ausfüllen.");
-      }
-      await addDocTo(COL.postfach, {
-        datum: data.datum || today(),
-        betreff: data.betreff,
-        text: data.text,
-        fromUid: u.uid,
-        fromName: u.displayName || (u.email||"").split("@")[0],
-        toUid: data.toUid,
-        toName: data.toName || ""
-      });
+
+       if (!data.toUser || !data.betreff || !data.text) {
+   throw new Error("Bitte Empfänger, Betreff und Nachricht ausfüllen.");
+  }
+
+  // Username normalisieren (klein) und UID in users-Collection suchen
+  const wanted = String(data.toUser).trim().toLowerCase();
+  const qSnap = await getDocs(
+    query(collection(db, base("users")), where("username","==", wanted))
+  );
+
+         if (qSnap.empty) throw new Error("Empfänger nicht gefunden.");
+  const userDoc = qSnap.docs[0];
+  const toUid = userDoc.id;
+  const toName = userDoc.data()?.displayName || wanted;
+
+  await addDocTo(COL.postfach, {
+    datum: data.datum || today(),
+    betreff: data.betreff,
+    text: data.text,
+    fromUid: u.uid,
+    fromName: u.displayName || (u.email||"").split("@")[0],
+    toUid,
+    toName
+  });
     }
   });
 
