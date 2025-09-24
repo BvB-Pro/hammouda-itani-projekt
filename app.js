@@ -1453,16 +1453,24 @@ filterCard.querySelector("#markAllReadBtn").style.display = (MAIL_FILTER==="inbo
       const body = `<p>${esc(m.text || "—")}</p>`;
 
       // Mehrfach-Anhänge
-      let attaches = "";
-      if (Array.isArray(m.attachments) && m.attachments.length){
-        const lis = m.attachments.map(a =>
-          `<li>📎 <a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name||"Anhang")}</a></li>`
-        ).join("");
-        attaches = `<ul class="attach-list">${lis}</ul>`;
-      } else if (m.attachment?.url) {
-        // Backward-compat (falls schon Einzelanhang existiert)
-        attaches = `<ul class="attach-list"><li>📎 <a href="${esc(m.attachment.url)}" target="_blank" rel="noopener">${esc(m.attachment.name||"Anhang")}</a></li></ul>`;
-      }
+    // Mehrfach-Anhänge robust rendern
+let attaches = "";
+const makeItems = (arr=[]) => arr.map(a => {
+  // a kann String (URL) oder Objekt {url,name} sein
+  const url = typeof a === "string" ? a : a?.url;
+  const name = (typeof a === "object" && a?.name) ? a.name : (url ? url.split("/").pop() : "Anhang");
+  return url ? `<li>📎 <a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)}</a></li>` : "";
+}).join("");
+
+if (Array.isArray(m.attachments) && m.attachments.length) {
+  const lis = makeItems(m.attachments);
+  if (lis) attaches = `<ul class="attach-list">${lis}</ul>`;
+} else if (m.attachment?.url || typeof m.attachment === "string") {
+  const arr = [ m.attachment?.url ? m.attachment : m.attachment ]; // normalize
+  const lis = makeItems(arr);
+  if (lis) attaches = `<ul class="attach-list">${lis}</ul>`;
+}
+
 
       // Toggle gelesen/ungelesen nur für Teilnehmer
       const canToggle = (u.uid===m.toUid || u.uid===m.fromUid);
