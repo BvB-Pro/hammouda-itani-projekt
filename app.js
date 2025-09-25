@@ -1606,7 +1606,7 @@ try {
   // Erst-Render & wenn Daten kommen
   renderList();
 
-
+}
 
 /* ====== Gemeinsame Module ====== */
 function buildCommonModules(container, cfg){
