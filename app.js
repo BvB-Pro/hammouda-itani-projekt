@@ -1601,7 +1601,7 @@ try {
   console.error("❌ Upload-/Speicher-Block fehlgeschlagen:", e);
   alert("Fehler beim Verarbeiten der Anhänge: " + (e.message || e.code));
 }
-
+}
 
   // Erst-Render & wenn Daten kommen
   renderList();
