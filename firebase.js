@@ -13,7 +13,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyBQNtE_uMdMC1Wb8HnOjyteNIklvd7_eqU",
   authDomain: "hammouda-itani-stiftung.firebaseapp.com",
   projectId: "hammouda-itani-stiftung",
-  storageBucket: "hammouda-itani-stiftung.appspot.com",
+  storageBucket: "hammouda-itani-stiftung.firebasestorage.app",
   messagingSenderId: "618009078772",
   appId: "1:618009078772:web:11ad079958edfb9fb627a1",
   measurementId: "G-5PVQMJR6EK"
