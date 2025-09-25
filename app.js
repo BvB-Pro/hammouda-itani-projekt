@@ -1550,24 +1550,38 @@ if (Array.isArray(m.attachments) && m.attachments.length) {
 const formEl = postfachCard.querySelector("form");
 const files = formEl?.querySelector('input[name="pdfs"]')?.files || [];
 
+// Debug: Was wurde ausgewählt?
+console.log("PDFs gewählt:", files.length, [...files].map(f => ({ name: f.name, type: f.type })));
+
 try {
   if (files.length) {
     const uploaded = [];
 
     for (const file of files) {
-      if (file.type !== "application/pdf") continue;
+      // nur PDFs zulassen (fallback über Dateiendung)
+      const isPDF = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      if (!isPDF) {
+        console.warn("Übersprungen (kein PDF):", file.name, file.type);
+        continue;
+      }
 
       const safeName = file.name.replace(/[^\w.\-]+/g, "_");
       const path = `tenants/${TENANT_ID}/postfach/${msgRef.id}/${safeName}`;
       const r = sRef(storage, path);
 
-      await uploadBytes(r, file, {
-        contentType: "application/pdf",
-        customMetadata: { fromUid: u.uid, toUid }
-      });
-
-      const url = await getDownloadURL(r);
-      uploaded.push({ name: safeName, url });
+      try {
+        await uploadBytes(r, file, {
+          contentType: "application/pdf",
+          // optional – falls du später in Rules prüfen willst:
+          customMetadata: { fromUid: u.uid, toUid }
+        });
+        const url = await getDownloadURL(r);
+        uploaded.push({ name: safeName, url });
+        console.log("✅ Upload ok:", safeName, url);
+      } catch (e) {
+        console.error("❌ Storage-Upload fehlgeschlagen:", e);
+        alert("PDF-Upload fehlgeschlagen: " + (e.message || e.code));
+      }
     }
 
     if (uploaded.length) {
@@ -1576,7 +1590,7 @@ try {
         _ts: serverTimestamp(),
       });
 
-      // ⤵︎ sofort im lokalen STORE aktualisieren (UI zeigt es direkt)
+      // sofort lokale UI aktualisieren
       const idx = STORE.postfach.findIndex(m => m.id === msgRef.id);
       if (idx !== -1) {
         STORE.postfach[idx] = { ...STORE.postfach[idx], attachments: uploaded };
@@ -1584,10 +1598,9 @@ try {
     }
   }
 } catch (e) {
-  console.error("Storage/Attachment error:", e);
-  alert("Anhang konnte nicht vollständig gespeichert werden: " + (e.message || e.code || e));
+  console.error("❌ Upload-/Speicher-Block fehlgeschlagen:", e);
+  alert("Fehler beim Verarbeiten der Anhänge: " + (e.message || e.code));
 }
-
 
 
   // Erst-Render & wenn Daten kommen
