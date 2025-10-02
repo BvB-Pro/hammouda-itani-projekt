@@ -701,9 +701,9 @@ function renderHome(app){
   app.appendChild(cardInfo("Liebe Kolleginnen und Kollegen,",
 `Es ist uns eine große Freude, euch als Team und Mitbegründer unserer Unternehmensgruppe willkommen zu heißen.
  
- Diese Trainings-Website dient ausschließlich zu **Übungs- und Schulungszwecken**.
+ Diese Trainings-Website dient ausschließlich zu Übungs- und Schulungszwecken. Es handelt sich somit weder um eine echte Stiftung oder um echte Unternehmen.
  
-Alle eingegebenen Daten sind **fiktiv** und haben keinerlei Bezug zu realen Personen oder Patienten. 
+Alle eingegebenen Daten sind fiktiv und haben keinerlei Bezug zu realen Personen oder Patienten. 
 Die Plattform simuliert realistische Dokumentationsabläufe – modern, sicher und zentral synchronisiert – 
 um praxisnahes Lernen zu ermöglichen.
 . `));
