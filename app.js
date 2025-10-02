@@ -1,4 +1,4 @@
-/* Hammouda-Itani-Stiftung – app.js (Tabs statt Dropdown)
+/* Hammouda-Itani-Stiftung  – app.js (Tabs statt Dropdown)
    - Oben: Unternehmens-Leiste (Tabs)
    - Home: Infotext → Stiftungsleitung (Cards) → E-Mail-Box → Krabblerstraße-News
    - Unterseiten: Leadership-Tabelle + Module
