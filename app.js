@@ -673,7 +673,7 @@ hero.innerHTML = `
   <div class="card hero-card">
     ${page.logo ? `<img src="${logoSrc}" alt="${page.title} Logo" class="hero-logo" onerror="this.style.display='none'">` : ""}
     <div>
-      <h1>${page.title}</h1>
+     <h1>${page.title} <span style="font-weight:normal">(Simulierte Übung)</span></h1>
       <p>${page.slogan}</p>
     </div>
   </div>`;
