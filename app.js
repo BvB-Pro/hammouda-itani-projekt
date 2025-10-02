@@ -16,7 +16,7 @@ import { storage } from "./firebase.js";
 
 /* ====== Seiten ====== */
 const PAGES = [
-  { id:"home",        title:"Hammouda-Itani Stiftung ",  slogan:"Die Stiftung von uns für uns.", logo:"assets/logos/Hammouda-Itani-Stiftung-Logo.PNG" },
+  { id:"home",        title:"Hammouda-Itani Stiftung (Simulierte Übungen) ",  slogan:"Die Stiftung von uns für uns.", logo:"assets/logos/Hammouda-Itani-Stiftung-Logo.PNG" },
   { id:"verwaltung",  title:"Hand in Hand Verwaltung",  slogan:"Zentrale Steuerung für starke Teams.", logo:"assets/logos/Hand-in-Hand-Verwaltung-Logo.jpeg" },
   { id:"kita",        title:"Die drei Löwen Kindergarten", slogan:"Der Kindergarten für echte Löwen.", logo:"assets/logos/Kindergarten-logo.PNG" },
   { id:"kinderarzt",  title:"Lieblings-Kinder", slogan:"Mit Liebe, Ruhe und Wissen für die Kleinsten.", logo:"assets/logos/Lieblingskinder-logo.PNG" },
