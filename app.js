@@ -709,7 +709,7 @@ Alle eingegebenen Daten sind **fiktiv** und haben keinerlei Bezug zu realen Pers
 Die Plattform simuliert realistische Dokumentationsabläufe – modern, sicher und zentral synchronisiert – 
 um praxisnahes Lernen zu ermöglichen.
 .`));
-.`));
+
 
   // 2) Stiftungsleitung nebeneinander
   const grid = ce("section",{className:"board-grid"});
