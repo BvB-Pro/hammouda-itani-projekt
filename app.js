@@ -701,9 +701,13 @@ function renderHome(app){
   app.appendChild(cardInfo("Liebe Kolleginnen und Kollegen,",
 `Es ist uns eine große Freude, euch als Team und Mitbegründer unserer Unternehmensgruppe willkommen zu heißen.
 
+app.appendChild(cardInfo("Liebe Kolleginnen und Kollegen,",
+`Es ist uns eine große Freude, euch als Team und Mitbegründer unserer Unternehmensgruppe willkommen zu heißen.
+
 Diese Trainings-Website ermöglicht realistische Dokumentationsübungen – sicher, modern und zentral synchronisiert.
 
 Gemeinsam wachsen wir: verantwortungsvoll, kompetent und mit Herz für die Menschen, die wir begleiten.`));
+.`));
 
   // 2) Stiftungsleitung nebeneinander
   const grid = ce("section",{className:"board-grid"});
