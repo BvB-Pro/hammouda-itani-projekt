@@ -691,6 +691,7 @@ hero.innerHTML = `
   if (page.id==="ergo") return renderErgo(app);
   if (page.id==="apotheke") return renderApotheke(app);
   if (page.id==="kinderarzt") return renderKinderarzt(app);
+  if (page.id==="marketing") return renderMarketingByAli(app);
 }
 
 /* ====== HOME ====== */
