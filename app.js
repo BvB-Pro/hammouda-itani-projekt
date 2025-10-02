@@ -735,7 +735,7 @@ um praxisnahes Lernen zu ermöglichen.
     <div class="board-card">
       <h4>Geschäftsführung</h4>
       <div class="name">V. Lauth</div>
-      <div>☎ —</div><div>📱 —</div><div>—</div>
+      <div>☎ 0201/181 5501 </div><div>📱 —</div><div>—</div>
     </div>
   `;
   app.appendChild(grid);
