@@ -1780,6 +1780,9 @@ function STOREFromPath(path){
       
   return [];
 }
+function renderMarketingByAli (app) {
+   app.appendChild(cardInfo("Marketing By Ali", "Weitere Informationen folgen."));
+   }
 
 /* ====== Export (Gesamt) ====== */
 function exportAllJSON(){
