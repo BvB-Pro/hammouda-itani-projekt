@@ -30,7 +30,8 @@ const PAGES = [
 
 /* ====== Leadership (nur Unterseiten) ====== */
 const LEADERSHIP = {
-  krankenhaus: { title:"Leitung Krankenhaus", rows:[{ name:"Samira", role:"Leitung Krankenhaus", phone:"☎ 0201 12 51 74 - 12", mobile:"—", email:"samira@stiftung.de" }] },
+   marketing: { title:"Leitung marketing", rows:[{ name:"Ali", role:"Leitung Marketing", phone:"☎ 0201 12 51 74 - 28", mobile:"—", email:"ali@stiftung.de" }] },
+ krankenhaus: { title:"Leitung Krankenhaus", rows:[{ name:"Samira", role:"Leitung Krankenhaus", phone:"☎ 0201 12 51 74 - 12", mobile:"—", email:"samira@stiftung.de" }] }, 
   kita:        { title:"Leitung Kindergarten", rows:[{ name:"Amadu", role:"Leitung Kindergarten", phone:"☎ 0201 12 51 74 - 12", mobile:"—", email:"amadu@stiftung.de" }] },
   pflegeheim:  { title:"Leitung Altenheim / Pflegeheim", rows:[{ name:"Evan", role:"Leitung Altenheim/Pflegeheim", phone:"☎ 0201 12 51 74 - 12", mobile:"—", email:"evan@stiftung.de" }] },
   ambulant:    { title:"Leitung Ambulanter Pflegedienst", rows:[{ name:"Josy", role:"Leitung Ambulante Pflege", phone:"☎ 0201 12 51 74 - 12", mobile:"—", email:"josy@stiftung.de" }] },
