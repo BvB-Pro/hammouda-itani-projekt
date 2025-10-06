@@ -13,6 +13,21 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/f
 import { ref as sRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 import { storage } from "./firebase.js";
 
+// ---- Adressbuch-Cache ----
+let RECIPIENTS = []; // [{uid, username, displayName}]
+async function loadRecipientsOnce(){
+  if (RECIPIENTS.length) return RECIPIENTS;
+  const snap = await getDocs(collection(db, base("users")));
+  RECIPIENTS = snap.docs.map(d => {
+    const u = d.data() || {};
+    return {
+      uid: d.id,
+      username: (u.username || "").toLowerCase(),
+      displayName: u.displayName || u.username || "Unbekannt"
+    };
+  }).sort((a,b)=> a.displayName.localeCompare(b.displayName));
+  return RECIPIENTS;
+}
 
 /* ====== Seiten ====== */
 const PAGES = [
@@ -1360,6 +1375,9 @@ function renderPostfach(app){
     app.appendChild(box);
     return;
   }
+   // Adressbuch laden (einmalig, für Autocomplete & Select)
+await loadRecipientsOnce();
+
 
   // --- Filter-Zustand: "inbox" oder "sent"
   let MAIL_FILTER = localStorage.getItem("postfachFilter") || "inbox";
@@ -1421,6 +1439,14 @@ filterCard.querySelector("#markAllReadBtn").style.display = (MAIL_FILTER==="inbo
     `,
     onSubmit: sendMessageWithAttachments
   });
+   // Select -> Input übernehmen
+const postForm = postfachCard.querySelector("form");
+postForm.querySelector("#toUserSelect")?.addEventListener("change", (e)=>{
+  const v = e.target.value || "";
+  const inp = postForm.querySelector('input[name="toUser"]');
+  if (v && inp) inp.value = v;
+});
+
 
   // Wir hängen unten unsere eigene Liste an
   const listHost = ce("div");
