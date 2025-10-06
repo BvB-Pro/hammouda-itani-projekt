@@ -1356,7 +1356,7 @@ function renderKinderarzt(app){
 
 //Postfach
 // Postfach
-function renderPostfach(app){
+async function renderPostfach(app){
   // === lokale Helpers (nur für das Postfach) ===
   const RECENT_KEY = "postfach_recent_users";
   const getRecentUsers = () => {
@@ -1389,10 +1389,17 @@ function renderPostfach(app){
     return;
   }
 
-  // Adressbuch laden (einmalig, für Autocomplete & Select)
-  await loadRecipientsOnce();
-  const byUser = new Map(RECIPIENTS.map(u => [u.username, u]));
-  const recent = getRecentUsers().filter(u => byUser.has(u));
+ // Adressbuch laden (einmalig, für Autocomplete & Select)
+await loadRecipientsOnce();                      // <-- richtig: loadRecipientsOnce()
+const byUser = new Map(RECIPIENTS.map(u => [u.username, u]));
+
+// zuletzt genutzte Empfänger aus localStorage (Hilfsfunktionen stehen oben in renderPostfach)
+const recent = getRecentUsers().filter(u => byUser.has(u));
+const recentOpts = recent.map(u => {
+  const d = byUser.get(u);
+  return `<option value="${esc(d.username)}">${esc(d.displayName)} (${esc(d.username)})</option>`;
+}).join("");
+
 
   // --- Filter-Zustand: "inbox" oder "sent"
   let MAIL_FILTER = localStorage.getItem("postfachFilter") || "inbox";
