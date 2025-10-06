@@ -1425,18 +1425,36 @@ filterCard.querySelector("#markAllReadBtn").style.display = (MAIL_FILTER==="inbo
     title: "Nachrichten",
     list: [], // Rendering übernehmen wir selbst
     renderLine(){ return ""; }, // ungenutzt
-    formHTML: `
-      ${input("Empfänger (Benutzername)","toUser",true,"text","")}
-      ${input("Betreff","betreff",true,"text","")}
-      ${textarea("Nachricht","text","")}
-      <label>PDF-Anhänge (optional)
-        <input name="pdfs" type="file" accept="application/pdf" multiple>
-      </label>
-      ${input("Datum","datum",false,"date",today())}
-      <div class="toolbar">
-        <button type="submit" class="btn primary">Senden</button>
-      </div>
-    `,
+formHTML: `
+  <label>Empfänger (Benutzername)
+    <input name="toUser" list="usersDatalist" placeholder="z. B. ali" required>
+  </label>
+  <datalist id="usersDatalist">
+    ${RECIPIENTS.map(u => 
+      `<option value="${esc(u.username)}" label="${esc(u.displayName)}"></option>`
+    ).join("")}
+  </datalist>
+
+  <label>Adressbuch
+    <select id="toUserSelect">
+      <option value="">— Empfänger wählen —</option>
+      ${RECIPIENTS.map(u => 
+        `<option value="${esc(u.username)}">${esc(u.displayName)} (${esc(u.username)})</option>`
+      ).join("")}
+    </select>
+  </label>
+
+  ${input("Betreff","betreff",true,"text","")}
+  ${textarea("Nachricht","text","")}
+  <label>PDF-Anhänge (optional)
+    <input name="pdfs" type="file" accept="application/pdf" multiple>
+  </label>
+  ${input("Datum","datum",false,"date",today())}
+  <div class="toolbar">
+    <button type="submit" class="btn primary">Senden</button>
+  </div>
+`,
+
     onSubmit: sendMessageWithAttachments
   });
    // Select -> Input übernehmen
