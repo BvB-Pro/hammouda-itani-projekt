@@ -1355,7 +1355,20 @@ function renderKinderarzt(app){
 }
 
 //Postfach
+// Postfach
 function renderPostfach(app){
+  // === lokale Helpers (nur für das Postfach) ===
+  const RECENT_KEY = "postfach_recent_users";
+  const getRecentUsers = () => {
+    try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; }
+    catch { return []; }
+  };
+  const pushRecentUser = (username) => {
+    const r = getRecentUsers().filter(x => x !== username);
+    r.unshift(username);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(r.slice(0,5)));
+  };
+
   app.innerHTML = "";
 
   const info = ce("div",{className:"card"});
@@ -1375,17 +1388,21 @@ function renderPostfach(app){
     app.appendChild(box);
     return;
   }
-   // Adressbuch laden (einmalig, für Autocomplete & Select)
-await loadRecipientsOnce();
 
+  // Adressbuch laden (einmalig, für Autocomplete & Select)
+  await loadRecipientsOnce();
+  const byUser = new Map(RECIPIENTS.map(u => [u.username, u]));
+  const recent = getRecentUsers().filter(u => byUser.has(u));
 
   // --- Filter-Zustand: "inbox" oder "sent"
   let MAIL_FILTER = localStorage.getItem("postfachFilter") || "inbox";
-  const setFilter = (f)=>{ MAIL_FILTER=f; localStorage.setItem("postfachFilter", f); renderList(); 
-//Button nur zeigen, wenn "inbox"
-      const markBtn = document.querySelector("#markAllReadBtn");
-  if (markBtn) markBtn.style.display = (MAIL_FILTER==="inbox") ? "" : "none";
-};
+  const setFilter = (f)=>{ 
+    MAIL_FILTER = f; 
+    localStorage.setItem("postfachFilter", f); 
+    renderList(); 
+    const markBtn = document.querySelector("#markAllReadBtn");
+    if (markBtn) markBtn.style.display = (MAIL_FILTER==="inbox") ? "" : "none";
+  };
 
   // --- UI: Filterleiste
   const filterCard = ce("div",{className:"card"});
@@ -1397,8 +1414,8 @@ await loadRecipientsOnce();
       <button type="button" class="btn" id="markAllReadBtn" title="Alle sichtbaren als gelesen markieren">Alle als gelesen</button>
     </div>
   `;
-   // Anfangs direkt korrekt setzen:
-filterCard.querySelector("#markAllReadBtn").style.display = (MAIL_FILTER==="inbox") ? "" : "none";
+  // Anfangs direkt korrekt setzen:
+  filterCard.querySelector("#markAllReadBtn").style.display = (MAIL_FILTER==="inbox") ? "" : "none";
 
   filterCard.addEventListener("click",(e)=>{
     const p = e.target.closest(".pill"); if (!p) return;
@@ -1425,46 +1442,68 @@ filterCard.querySelector("#markAllReadBtn").style.display = (MAIL_FILTER==="inbo
     title: "Nachrichten",
     list: [], // Rendering übernehmen wir selbst
     renderLine(){ return ""; }, // ungenutzt
-formHTML: `
-  <label>Empfänger (Benutzername)
-    <input name="toUser" list="usersDatalist" placeholder="z. B. ali" required>
-  </label>
-  <datalist id="usersDatalist">
-    ${RECIPIENTS.map(u => 
-      `<option value="${esc(u.username)}" label="${esc(u.displayName)}"></option>`
-    ).join("")}
-  </datalist>
+    formHTML: `
+      <label>Empfänger (Benutzername)
+        <input name="toUser" list="usersDatalist" placeholder="z. B. ali" required>
+      </label>
+      <div class="muted" id="toUserNameHint" style="margin-top:-6px;margin-bottom:6px;"></div>
 
-  <label>Adressbuch
-    <select id="toUserSelect">
-      <option value="">— Empfänger wählen —</option>
-      ${RECIPIENTS.map(u => 
-        `<option value="${esc(u.username)}">${esc(u.displayName)} (${esc(u.username)})</option>`
-      ).join("")}
-    </select>
-  </label>
+      <datalist id="usersDatalist">
+        ${RECIPIENTS.map(u =>
+          `<option value="${esc(u.username)}" label="${esc(u.displayName)}"></option>`
+        ).join("")}
+      </datalist>
 
-  ${input("Betreff","betreff",true,"text","")}
-  ${textarea("Nachricht","text","")}
-  <label>PDF-Anhänge (optional)
-    <input name="pdfs" type="file" accept="application/pdf" multiple>
-  </label>
-  ${input("Datum","datum",false,"date",today())}
-  <div class="toolbar">
-    <button type="submit" class="btn primary">Senden</button>
-  </div>
-`,
+      <label>Adressbuch
+        <select id="toUserSelect">
+          <option value="">— Empfänger wählen —</option>
+          ${recent.length ? `<optgroup label="Zuletzt">
+            ${recent.map(u => {
+              const d = byUser.get(u);
+              return `<option value="${esc(d.username)}">${esc(d.displayName)} (${esc(d.username)})</option>`;
+            }).join("")}
+          </optgroup>` : ""}
+          <optgroup label="Alle">
+            ${RECIPIENTS.map(u =>
+              `<option value="${esc(u.username)}">${esc(u.displayName)} (${esc(u.username)})</option>`
+            ).join("")}
+          </optgroup>
+        </select>
+      </label>
 
+      ${input("Betreff","betreff",true,"text","")}
+      ${textarea("Nachricht","text","")}
+      <label>PDF-Anhänge (optional)
+        <input name="pdfs" type="file" accept="application/pdf" multiple>
+      </label>
+      ${input("Datum","datum",false,"date",today())}
+      <div class="toolbar">
+        <button type="submit" class="btn primary">Senden</button>
+      </div>
+    `,
     onSubmit: sendMessageWithAttachments
   });
-   // Select -> Input übernehmen
-const postForm = postfachCard.querySelector("form");
-postForm.querySelector("#toUserSelect")?.addEventListener("change", (e)=>{
-  const v = e.target.value || "";
-  const inp = postForm.querySelector('input[name="toUser"]');
-  if (v && inp) inp.value = v;
-});
 
+  const postForm = postfachCard.querySelector("form");
+  const toInput = postForm.querySelector('input[name="toUser"]');
+  const toNameHint = postForm.querySelector('#toUserNameHint');
+  const toSelect = postForm.querySelector("#toUserSelect");
+
+  // Select -> Input übernehmen
+  toSelect?.addEventListener("change", (e)=>{
+    const v = e.target.value || "";
+    if (v && toInput) toInput.value = v;
+    updateNameHint();
+  });
+
+  // Live-Anzeige des Klar-Namens
+  function updateNameHint(){
+    const v = (toInput.value || "").toLowerCase().trim();
+    const hit = RECIPIENTS.find(u => u.username === v);
+    toNameHint.textContent = hit ? `Empfänger: ${hit.displayName}` : "";
+  }
+  toInput.addEventListener("input", updateNameHint);
+  updateNameHint();
 
   // Wir hängen unten unsere eigene Liste an
   const listHost = ce("div");
@@ -1484,7 +1523,6 @@ postForm.querySelector("#toUserSelect")?.addEventListener("change", (e)=>{
       listHost.appendChild(ce("p",{className:"muted",textContent:"Keine Nachrichten."}));
       return;
     }
-    
 
     items.forEach(m=>{
       const wrap = ce("div");
@@ -1503,25 +1541,22 @@ postForm.querySelector("#toUserSelect")?.addEventListener("change", (e)=>{
       `;
       const body = `<p>${esc(m.text || "—")}</p>`;
 
-      // Mehrfach-Anhänge
-    // Mehrfach-Anhänge robust rendern
-let attaches = "";
-const makeItems = (arr=[]) => arr.map(a => {
-  // a kann String (URL) oder Objekt {url,name} sein
-  const url = typeof a === "string" ? a : a?.url;
-  const name = (typeof a === "object" && a?.name) ? a.name : (url ? url.split("/").pop() : "Anhang");
-  return url ? `<li>📎 <a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)}</a></li>` : "";
-}).join("");
+      // Mehrfach-Anhänge robust rendern
+      let attaches = "";
+      const makeItems = (arr=[]) => arr.map(a => {
+        const url = typeof a === "string" ? a : a?.url;
+        const name = (typeof a === "object" && a?.name) ? a.name : (url ? url.split("/").pop() : "Anhang");
+        return url ? `<li>📎 <a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)}</a></li>` : "";
+      }).join("");
 
-if (Array.isArray(m.attachments) && m.attachments.length) {
-  const lis = makeItems(m.attachments);
-  if (lis) attaches = `<ul class="attach-list">${lis}</ul>`;
-} else if (m.attachment?.url || typeof m.attachment === "string") {
-  const arr = [ m.attachment?.url ? m.attachment : m.attachment ]; // normalize
-  const lis = makeItems(arr);
-  if (lis) attaches = `<ul class="attach-list">${lis}</ul>`;
-}
-
+      if (Array.isArray(m.attachments) && m.attachments.length) {
+        const lis = makeItems(m.attachments);
+        if (lis) attaches = `<ul class="attach-list">${lis}</ul>`;
+      } else if (m.attachment?.url || typeof m.attachment === "string") {
+        const arr = [ m.attachment?.url ? m.attachment : m.attachment ]; // normalize
+        const lis = makeItems(arr);
+        if (lis) attaches = `<ul class="attach-list">${lis}</ul>`;
+      }
 
       // Toggle gelesen/ungelesen nur für Teilnehmer
       const canToggle = (u.uid===m.toUid || u.uid===m.fromUid);
@@ -1577,6 +1612,11 @@ if (Array.isArray(m.attachments) && m.attachments.length) {
     const toUid = userDoc.id;
     const toName = userDoc.data()?.displayName || wanted;
 
+    // ❗ Selbst-Senden verhindern (VOR addDoc)
+    if (toUid === u.uid) {
+      throw new Error("Du kannst dir im 1:1-Postfach nicht selbst schreiben.");
+    }
+
     // Nachricht ohne Attachments anlegen (ID bekommen)
     const msgRef = await addDoc(collection(db, COL.postfach), {
       datum: formData.datum || today(),
@@ -1596,68 +1636,82 @@ if (Array.isArray(m.attachments) && m.attachments.length) {
       }
     });
 
-// Mehrfach-PDFs hochladen
-// Mehrfach-PDFs hochladen
-const formEl = postfachCard.querySelector("form");
-const files = formEl?.querySelector('input[name="pdfs"]')?.files || [];
+    // „Zuletzt verwendet“ aktualisieren + Select live updaten
+    pushRecentUser(wanted);
+    rebuildRecentOptgroup();
 
-// Debug: Was wurde ausgewählt?
-console.log("PDFs gewählt:", files.length, [...files].map(f => ({ name: f.name, type: f.type })));
+    // Mehrfach-PDFs hochladen
+    const formEl = postfachCard.querySelector("form");
+    const files = formEl?.querySelector('input[name="pdfs"]')?.files || [];
 
-try {
-  if (files.length) {
-    const uploaded = [];
+    try {
+      if (files.length) {
+        const uploaded = [];
+        for (const file of files) {
+          const isPDF = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+          if (!isPDF) {
+            console.warn("Übersprungen (kein PDF):", file.name, file.type);
+            continue;
+          }
+          const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+          const path = `tenants/${TENANT_ID}/postfach/${msgRef.id}/${safeName}`;
+          const r = sRef(storage, path);
+          try {
+            await uploadBytes(r, file, {
+              contentType: "application/pdf",
+              customMetadata: { fromUid: u.uid, toUid }
+            });
+            const url = await getDownloadURL(r);
+            uploaded.push({ name: safeName, url });
+          } catch (e) {
+            console.error("Storage-Upload fehlgeschlagen:", e);
+            alert("PDF-Upload fehlgeschlagen: " + (e.message || e.code));
+          }
+        }
 
-    for (const file of files) {
-      // nur PDFs zulassen (fallback über Dateiendung)
-      const isPDF = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
-      if (!isPDF) {
-        console.warn("Übersprungen (kein PDF):", file.name, file.type);
-        continue;
+        if (uploaded.length) {
+          await updateDoc(doc(db, COL.postfach, msgRef.id), {
+            attachments: uploaded,
+            _ts: serverTimestamp(),
+          });
+
+          // sofort lokale UI aktualisieren
+          const idx = STORE.postfach.findIndex(m => m.id === msgRef.id);
+          if (idx !== -1) {
+            STORE.postfach[idx] = { ...STORE.postfach[idx], attachments: uploaded };
+          }
+        }
       }
-
-      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
-      const path = `tenants/${TENANT_ID}/postfach/${msgRef.id}/${safeName}`;
-      const r = sRef(storage, path);
-
-      try {
-        await uploadBytes(r, file, {
-          contentType: "application/pdf",
-          // optional – falls du später in Rules prüfen willst:
-          customMetadata: { fromUid: u.uid, toUid }
-        });
-        const url = await getDownloadURL(r);
-        uploaded.push({ name: safeName, url });
-        console.log("✅ Upload ok:", safeName, url);
-      } catch (e) {
-        console.error("❌ Storage-Upload fehlgeschlagen:", e);
-        alert("PDF-Upload fehlgeschlagen: " + (e.message || e.code));
-      }
-    }
-
-    if (uploaded.length) {
-      await updateDoc(doc(db, COL.postfach, msgRef.id), {
-        attachments: uploaded,
-        _ts: serverTimestamp(),
-      });
-
-      // sofort lokale UI aktualisieren
-      const idx = STORE.postfach.findIndex(m => m.id === msgRef.id);
-      if (idx !== -1) {
-        STORE.postfach[idx] = { ...STORE.postfach[idx], attachments: uploaded };
-      }
+    } catch (e) {
+      console.error("Upload-/Speicher-Block fehlgeschlagen:", e);
+      alert("Fehler beim Verarbeiten der Anhänge: " + (e.message || e.code));
     }
   }
-} catch (e) {
-  console.error("❌ Upload-/Speicher-Block fehlgeschlagen:", e);
-  alert("Fehler beim Verarbeiten der Anhänge: " + (e.message || e.code));
-}
-}
+
+  // Optgroup "Zuletzt" live neu aufbauen
+  function rebuildRecentOptgroup(){
+    const sel = postfachCard.querySelector("#toUserSelect");
+    if (!sel) return;
+    const newRecent = getRecentUsers().filter(u => byUser.has(u));
+    // Entferne alte "Zuletzt"-Optgroup (falls vorhanden)
+    [...sel.querySelectorAll('optgroup[label="Zuletzt"]')].forEach(g => g.remove());
+    if (!newRecent.length) return;
+
+    const grp = document.createElement("optgroup");
+    grp.setAttribute("label","Zuletzt");
+    grp.innerHTML = newRecent.map(u => {
+      const d = byUser.get(u);
+      return `<option value="${esc(d.username)}">${esc(d.displayName)} (${esc(d.username)})</option>`;
+    }).join("");
+    const allGrp = sel.querySelector('optgroup[label="Alle"]');
+    if (allGrp) sel.insertBefore(grp, allGrp);
+    else sel.appendChild(grp);
+  }
 
   // Erst-Render & wenn Daten kommen
   renderList();
-
 }
+
 
 /* ====== Gemeinsame Module ====== */
 function buildCommonModules(container, cfg){
