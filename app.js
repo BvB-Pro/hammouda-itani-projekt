@@ -510,6 +510,8 @@ async function initRealtime(){
      // Verwaltung
   subscribe(ascByDate(COL.verw_news),   STORE.verwaltung.news);
   subscribe(ascByDate(COL.verw_orders), STORE.verwaltung.orders);
+  subscribe(ascByDate(COL.verw_lager), STORE.verwaltung.lager);
+
 
 
   // Pflegeheim
