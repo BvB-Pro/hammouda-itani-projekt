@@ -138,6 +138,7 @@ const COL = {
      // Verwaltung
   verw_news:   base("verw_news"),
   verw_orders: base("verw_orders"),
+  verw_lager:  base("verw_lagerbewegungen"), // NEU
   // Kita
   kita_kinder: base("kita_kinder"),
   kita_beobachtungen: base("kita_beobachtungen"),
@@ -196,7 +197,11 @@ const COL = {
 
 /* ====== Store ====== */
 const STORE = {
-     verwaltung:{ news:[], orders:[] },
+  verwaltung:{ 
+    news:[], 
+    orders:[],
+    lager:[]            // ⬅️ NEU: Bewegungen (Ein- & Ausgänge)
+  },
   kita:{kinder:[],beobachtungen:[],anwesenheit:[],eltern:[]},
   pflege:{bewohner:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[],berichte:[]},
   krankenhaus:{patienten:[],anordnungen:[],massnahmen:[],sturz:[],wunden:[],vitals:[],medis:[],fluess:[],lagerung:[],schmerz:[], berichte:[]},
@@ -204,8 +209,9 @@ const STORE = {
   ergo:{klienten:[],einheiten:[], berichte:[]},
   apotheke:{kunden:[],abgaben:[]},
   kinderarzt:{patienten:[],besuche:[],termine:[]},
- postfach: [],   
+  postfach: [],   
 };
+
 
 /* ====== Boot ====== */
 document.addEventListener("DOMContentLoaded", async () => {
