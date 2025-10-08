@@ -40,7 +40,7 @@ const PAGES = [
   { id:"ambulant",    title:"Ambulanter Pflegedienst zum Stern", slogan:"Hilfe, die zu Ihnen kommt.", logo:"assets/logos/ambulant-Logo.png" },
   { id:"ergo",        title:"Ergotherapeuten „Unart“", slogan:"Ungewohnt gut – Therapie neu gedacht.", logo:"assets/logos/Unart-logo.PNG" },
   { id:"apotheke",    title:"Sonnen Apotheke", slogan:"Die Apotheke mit dem Strahlen.", logo:"assets/logos/Sonnen-Apotheke-Logo.PNG" },
-  { id:"marketing", title:"Marketing By Ali", slogan:"Weitere Informationen folgen.", logo:"assets/logos/marketing-by-ali.png" },
+  { id:"marketing", title:"Marketing By Ali", slogan:"Weitere Informationen folgen.", logo:"assets/logos/Marketing-Logo.PNG" },
 ];
 
 /* ====== Leadership (nur Unterseiten) ====== */
