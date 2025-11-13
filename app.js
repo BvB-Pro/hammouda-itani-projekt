@@ -637,6 +637,120 @@ async function addDocTo(path, data){
   return addDoc(collection(db, path), { ...data, _by: by, _ts: serverTimestamp() });
 }
 
+//Helper für Zeit und Minuten
+function nowHHMM(){
+  const d = new Date();
+  const h = String(d.getHours()).padStart(2,"0");
+  const m = String(d.getMinutes()).padStart(2,"0");
+  return `${h}:${m}`;
+}
+
+function diffMinutes(startStr, endStr){
+  if (!startStr || !endStr) return 0;
+  const [sh, sm] = startStr.split(":").map(Number);
+  const [eh, em] = endStr.split(":").map(Number);
+  return (eh*60+em) - (sh*60+sm);
+}
+
+function minutesToHHMM(mins){
+  const sign = mins < 0 ? "-" : "";
+  const m = Math.abs(mins);
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  return `${sign}${String(h).padStart(2,"0")}:${String(rest).padStart(2,"0")}`;
+}
+
+//Heutiges Arbeitszeit Dokument holen
+async function loadWorkdayForUser(uid, datum){
+  const id = `${uid}_${datum}`;
+  const ref = doc(db, COL.arbeitszeiten, id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  return { id, ...snap.data() };
+}
+
+//Arbeitszeit-Update-Funktion
+async function updateWorkday(action){
+  const u = auth.currentUser;
+  if (!u) throw new Error("Nur mit Login nutzbar.");
+
+  const datum = today(); // "YYYY-MM-DD"
+  const id = `${u.uid}_${datum}`;
+  const ref = doc(db, COL.arbeitszeiten, id);
+  const snap = await getDoc(ref);
+
+  let data = snap.exists() ? snap.data() : {
+    uid: u.uid,
+    datum,
+    start: null,
+    end: null,
+    pauseMin: 0,
+    pauseOpenAt: null,
+    totalWorkMin: 0,
+    sollMin: 480,     // 8h
+    guthabenMin: 0
+  };
+
+  const now = nowHHMM();
+
+  switch(action){
+    case "start":
+      data.start = now;
+      data.end = null;
+      data.pauseMin = 0;
+      data.pauseOpenAt = null;
+      data.totalWorkMin = 0;
+      data.guthabenMin = 0;
+      break;
+
+    case "pauseStart":
+      if (!data.start) throw new Error("Bitte zuerst die Arbeit beginnen.");
+      if (data.pauseOpenAt) throw new Error("Es läuft bereits eine Pause.");
+      data.pauseOpenAt = now;
+      break;
+
+    case "pauseEnd":
+      if (!data.pauseOpenAt) throw new Error("Keine begonnene Pause gefunden.");
+      data.pauseMin = (data.pauseMin || 0) + diffMinutes(data.pauseOpenAt, now);
+      data.pauseOpenAt = null;
+      break;
+
+    case "feierabend":
+      if (!data.start) throw new Error("Bitte zuerst die Arbeit beginnen.");
+      data.end = now;
+      const brutto = diffMinutes(data.start, data.end);
+      const pause = data.pauseMin || 0;
+      const netto = Math.max(0, brutto - pause);
+      data.totalWorkMin = netto;
+      const soll = data.sollMin || 480;
+      data.guthabenMin = netto - soll;
+      break;
+
+    default:
+      throw new Error("Unbekannte Aktion: " + action);
+  }
+
+  await setDoc(ref, { ...data, _ts: serverTimestamp() });
+  return { id, ...data };
+}
+
+//Monatsliste
+async function loadWorkdaysForCurrentUser(monthValue){
+  // monthValue z. B. "2025-11"
+  const u = auth.currentUser;
+  if (!u) throw new Error("Nur mit Login nutzbar.");
+
+  const qRef = query(collection(db, COL.arbeitszeiten), where("uid","==", u.uid));
+  const snap = await getDocs(qRef);
+  const all = [];
+  snap.forEach(d => all.push({ id:d.id, ...d.data() }));
+
+  // Nach Datum sortieren
+  all.sort((a,b)=> (a.datum||"").localeCompare(b.datum||""));
+
+  if (!monthValue) return all;
+  return all.filter(x => (x.datum || "").startsWith(monthValue));
+}
 
 
 /* ====== Routing ====== */
@@ -1775,6 +1889,291 @@ const recentOpts = recent.map(u => {
   // Erst-Render & wenn Daten kommen
   renderList();
 }
+
+//Render Arbeitszeit
+
+async function renderArbeitszeitUser(app){
+  app.innerHTML = "";
+
+  const u = auth.currentUser;
+  if (!u) {
+    app.appendChild(cardInfo("Arbeitszeit", "Bitte anmelden, um deine Arbeitszeit zu sehen."));
+    return;
+  }
+
+  const info = cardInfo(
+    "Arbeitszeiterfassung",
+    "Hier kannst du deine tägliche Arbeitszeit erfassen.\n\n" +
+    "Beginne deinen Tag mit „Arbeit beginnen“, trage Pausen ein und beende den Tag mit „Feierabend“.\n" +
+    "Unten siehst du eine Monatsübersicht mit Soll/Ist und Guthaben."
+  );
+  app.appendChild(info);
+
+  const todayCard = ce("div",{className:"card"});
+  const datum = today();
+  let workday = await loadWorkdayForUser(u.uid, datum);
+
+  const renderToday = ()=>{
+    const start = workday?.start || "—";
+    const end   = workday?.end   || "—";
+    const pauseMin = workday?.pauseMin || 0;
+    const nettoMin = workday?.totalWorkMin || 0;
+    const sollMin  = workday?.sollMin || 480;
+    const gutMin   = workday?.guthabenMin || 0;
+
+    const pauseHHMM = minutesToHHMM(pauseMin);
+    const nettoHHMM = minutesToHHMM(nettoMin);
+    const sollHHMM  = minutesToHHMM(sollMin);
+    const gutHHMM   = minutesToHHMM(gutMin);
+
+    todayCard.innerHTML = `
+      <h3>Heute (${esc(datum)})</h3>
+      <p class="muted">
+        Start: <strong>${esc(start)}</strong>,
+        Ende: <strong>${esc(end)}</strong>,
+        Pause gesamt: <strong>${esc(pauseHHMM)}</strong><br>
+        Ist: <strong>${esc(nettoHHMM)}</strong>,
+        Soll: <strong>${esc(sollHHMM)}</strong>,
+        Guthaben: <strong>${esc(gutHHMM)}</strong>
+      </p>
+      <div class="toolbar">
+        <button type="button" class="btn" data-wt="start">Arbeit beginnen</button>
+        <button type="button" class="btn" data-wt="pauseStart">Pause beginnen</button>
+        <button type="button" class="btn" data-wt="pauseEnd">Pause beenden</button>
+        <button type="button" class="btn primary" data-wt="feierabend">Feierabend</button>
+      </div>
+    `;
+  };
+
+  renderToday();
+  app.appendChild(todayCard);
+
+  // Buttons anklemmen
+  todayCard.addEventListener("click", async (e)=>{
+    const btn = e.target.closest("button[data-wt]");
+    if (!btn) return;
+    const action = btn.dataset.wt;
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Speichere…";
+    try{
+      workday = await updateWorkday(action);
+      renderToday();
+      alert("Arbeitszeit aktualisiert.");
+    }catch(err){
+      alert("Fehler: " + (err.message || err));
+    }finally{
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
+  });
+
+  // Monatsansicht
+  const monthCard = ce("div",{className:"card"});
+  const now = new Date();
+  const monthValue = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+
+  monthCard.innerHTML = `
+    <h3>Monatsübersicht</h3>
+    <label>Monat wählen
+      <input type="month" id="wtMonth" value="${monthValue}">
+    </label>
+    <div id="wtTableWrap" style="margin-top:8px;"></div>
+  `;
+  app.appendChild(monthCard);
+
+  async function renderMonth(){
+    const mVal = monthCard.querySelector("#wtMonth").value;
+    const list = await loadWorkdaysForCurrentUser(mVal);
+    const wrap = monthCard.querySelector("#wtTableWrap");
+    wrap.innerHTML = "";
+
+    if (!list.length){
+      wrap.innerHTML = `<p class="muted">Keine Einträge für diesen Monat.</p>`;
+      return;
+    }
+
+    let sumSoll = 0, sumIst = 0, sumGut = 0;
+
+    const rows = list.map(d=>{
+      const pause = d.pauseMin || 0;
+      const ist   = d.totalWorkMin || 0;
+      const soll  = d.sollMin || 480;
+      const gut   = d.guthabenMin || (ist - soll);
+
+      sumSoll += soll;
+      sumIst  += ist;
+      sumGut  += gut;
+
+      return `
+        <tr>
+          <td>${esc(d.datum || "")}</td>
+          <td>${esc(d.start || "—")}</td>
+          <td>${esc(d.end   || "—")}</td>
+          <td>${esc(minutesToHHMM(pause))}</td>
+          <td>${esc(minutesToHHMM(ist))}</td>
+          <td>${esc(minutesToHHMM(soll))}</td>
+          <td>${esc(minutesToHHMM(gut))}</td>
+        </tr>
+      `;
+    }).join("");
+
+    wrap.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Start</th>
+              <th>Ende</th>
+              <th>Pause</th>
+              <th>Ist</th>
+              <th>Soll</th>
+              <th>Guthaben</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr>
+              <th colspan="3">Summe</th>
+              <th>${esc(minutesToHHMM(0))}</th>
+              <th>${esc(minutesToHHMM(sumIst))}</th>
+              <th>${esc(minutesToHHMM(sumSoll))}</th>
+              <th>${esc(minutesToHHMM(sumGut))}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    `;
+  }
+
+  monthCard.querySelector("#wtMonth").addEventListener("change", renderMonth);
+  renderMonth();
+}
+async function renderArbeitszeitAdmin(app){
+  app.innerHTML = "";
+
+  const u = auth.currentUser;
+  if (!u || !CURRENT_ROLES.timeAdmin) {
+    app.appendChild(cardInfo("Arbeitszeiten (Admin)", "Du hast keine Berechtigung für diese Ansicht."));
+    return;
+  }
+
+  app.appendChild(cardInfo(
+    "Arbeitszeiten – Admin",
+    "Hier kannst du die Arbeitszeit aller freigeschalteten Nutzer einsehen.\n\n" +
+    "Wähle einen Benutzer und einen Monat aus, um die Einträge zu sehen."
+  ));
+
+  // sicherstellen, dass RECIPIENTS geladen sind
+  await loadRecipientsOnce();
+
+  const selUserCard = ce("div",{className:"card"});
+  const monthDefault = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+  })();
+
+  selUserCard.innerHTML = `
+    <h3>Benutzer & Monat wählen</h3>
+    <label>Benutzer
+      <select id="adminUserSelect">
+        <option value="">— wählen —</option>
+        ${RECIPIENTS.map(u => 
+          `<option value="${esc(u.uid)}">${esc(u.displayName)} (${esc(u.username)})</option>`
+        ).join("")}
+      </select>
+    </label>
+    <label>Monat
+      <input type="month" id="adminMonth" value="${monthDefault}">
+    </label>
+    <div class="toolbar">
+      <button type="button" class="btn primary" id="adminLoad">Laden</button>
+    </div>
+    <div id="adminTableWrap" style="margin-top:8px;"></div>
+  `;
+  app.appendChild(selUserCard);
+
+  async function loadForAdmin(){
+    const uid = selUserCard.querySelector("#adminUserSelect").value;
+    const monthValue = selUserCard.querySelector("#adminMonth").value;
+    const wrap = selUserCard.querySelector("#adminTableWrap");
+    wrap.innerHTML = "";
+
+    if (!uid || !monthValue){
+      wrap.innerHTML = `<p class="muted">Bitte Benutzer und Monat wählen.</p>`;
+      return;
+    }
+
+    // Alle Einträge dieses Users holen
+    const qRef = query(collection(db, COL.arbeitszeiten), where("uid","==", uid));
+    const snap = await getDocs(qRef);
+    const all = [];
+    snap.forEach(d => all.push({ id:d.id, ...d.data() }));
+    all.sort((a,b)=> (a.datum||"").localeCompare(b.datum||""));
+
+    const list = all.filter(x => (x.datum || "").startsWith(monthValue));
+    if (!list.length){
+      wrap.innerHTML = `<p class="muted">Keine Einträge für diesen Monat.</p>`;
+      return;
+    }
+
+    let sumSoll = 0, sumIst = 0, sumGut = 0;
+
+    const rows = list.map(d=>{
+      const pause = d.pauseMin || 0;
+      const ist   = d.totalWorkMin || 0;
+      const soll  = d.sollMin || 480;
+      const gut   = d.guthabenMin || (ist - soll);
+
+      sumSoll += soll;
+      sumIst  += ist;
+      sumGut  += gut;
+
+      return `
+        <tr>
+          <td>${esc(d.datum || "")}</td>
+          <td>${esc(d.start || "—")}</td>
+          <td>${esc(d.end   || "—")}</td>
+          <td>${esc(minutesToHHMM(pause))}</td>
+          <td>${esc(minutesToHHMM(ist))}</td>
+          <td>${esc(minutesToHHMM(soll))}</td>
+          <td>${esc(minutesToHHMM(gut))}</td>
+        </tr>
+      `;
+    }).join("");
+
+    wrap.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Start</th>
+              <th>Ende</th>
+              <th>Pause</th>
+              <th>Ist</th>
+              <th>Soll</th>
+              <th>Guthaben</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr>
+              <th colspan="4">Summen</th>
+              <th>${esc(minutesToHHMM(sumIst))}</th>
+              <th>${esc(minutesToHHMM(sumSoll))}</th>
+              <th>${esc(minutesToHHMM(sumGut))}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    `;
+  }
+
+  selUserCard.querySelector("#adminLoad").addEventListener("click", loadForAdmin);
+}
+
 
 
 /* ====== Gemeinsame Module ====== */
