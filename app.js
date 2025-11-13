@@ -7,7 +7,7 @@
 import { db, authReady, loginWithUsername, logout, auth } from "./firebase.js";
 import {
   collection, addDoc, onSnapshot, serverTimestamp,
-  query, orderBy, updateDoc, doc, where, getDocs, setDoc
+  query, orderBy, updateDoc, doc, where, getDocs, setDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { ref as sRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
@@ -71,6 +71,10 @@ const UI_KEY = "stiftung-ui-v3";
 function loadUI(){ try{return JSON.parse(localStorage.getItem(UI_KEY))||{lastPage:"home",dark:false}}catch{return{lastPage:"home",dark:false}}}
 function saveUI(patch){ localStorage.setItem(UI_KEY, JSON.stringify({ ...loadUI(), ...patch })); }
 let CURRENT_PAGE = loadUI().lastPage || "home";
+let CURRENT_USER = null;
+let CURRENT_PROFILE = null;
+let CURRENT_ROLES = {};  // z. B. { timeAdmin:true, superAdmin:true }
+
 
 function ensureGalleryStyles(){
   if (document.getElementById("galleryStyles")) return;
@@ -193,6 +197,9 @@ const COL = {
   kid_termine: base("kid_termine"),
    // Postfach
  postfach:        base("postfach"),      // ⬅️ NEU
+   //Arbeitszeiten
+   arbeitszeiten: base("arbeitszeiten"),   // ⬅️ NEU: Arbeitszeiterfassung
+
 };
 
 /* ====== Store ====== */
@@ -311,6 +318,12 @@ function updateAuthUI(){
       ud.textContent = "Gast";
     }
   }
+     // Admin-Eintrag für Arbeitszeit nur anzeigen, wenn Rolle vorhanden
+  const btnAdmin = document.querySelector('#userMenuItems button[data-action="arbeitszeit-admin"]');
+  if (btnAdmin) {
+    btnAdmin.style.display = (CURRENT_ROLES.timeAdmin ? "" : "none");
+  }
+
 }
 
 
@@ -340,6 +353,20 @@ function updateAuthUI(){
   if (act === "pw-change") {
     alert("Passwort ändern kommt noch 😊");
   }
+        if (act === "arbeitszeit") {
+    switchTo("home");
+    renderArbeitszeitUser(qs("#app"));
+  }
+
+  if (act === "arbeitszeit-admin") {
+    if (!CURRENT_ROLES.timeAdmin) {
+      alert("Du hast keine Berechtigung für die Admin-Ansicht Arbeitszeit.");
+      return;
+    }
+    switchTo("home");
+    renderArbeitszeitAdmin(qs("#app"));
+  }
+
 });
 
 
@@ -384,10 +411,20 @@ onAuthStateChanged(auth, (u) => {
 });
 
 async function ensureUserProfile(u){
-  if (!u) return;
+  if (!u) {
+    CURRENT_USER = null;
+    CURRENT_PROFILE = null;
+    CURRENT_ROLES = {};
+    setUnreadCount(0);
+    return;
+  }
+
   const username = (u.email || "").split("@")[0].toLowerCase();
+  const ref = doc(db, base("users"), u.uid);
+
+  // Basisdaten schreiben, Rollen NICHT überschreiben (merge: true)
   await setDoc(
-    doc(db, base("users"), u.uid),
+    ref,
     {
       username,
       displayName: u.displayName || username,
@@ -395,9 +432,21 @@ async function ensureUserProfile(u){
     },
     { merge: true }
   );
-   setUnreadCount(0);
 
+  // Profil lesen (inkl. Rollen)
+  const snap = await getDoc(ref);
+  const data = snap.data() || {};
+
+  CURRENT_USER   = u;
+  CURRENT_PROFILE = data;
+  CURRENT_ROLES   = data.roles || {};   // z. B. { timeAdmin:true }
+
+  setUnreadCount(0);
+
+  // UI aktualisieren (damit z. B. Admin-Menü angezeigt/versteckt wird)
+  updateAuthUI();
 }
+
 
 
   await initRealtime().catch(console.warn);
