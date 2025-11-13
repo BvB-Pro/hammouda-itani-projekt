@@ -376,6 +376,16 @@ function updateAuthUI(){
  // 🔐 Auth-Änderungen verdrahten (⟵ diesen ganzen Block ersetzen)
 let authUnsubs = []; // aktive Listener für die aktuelle Session
 
+   async function maybeAskForWorktimeOnLogin(u){
+  if (!u) return;
+  const datum = today();
+  const day = await loadWorkdayForUser(u.uid, datum);
+  if (!day || !day.start){
+    const ok = confirm("Möchtest du deine Arbeit jetzt beginnen?");
+    if (ok) await updateWorkday("start");
+  }
+}
+
 onAuthStateChanged(auth, (u) => {
   // Alte Listener (z. B. vom vorherigen User) schließen
   authUnsubs.forEach(fn => { try { fn(); } catch(_){} });
@@ -385,6 +395,7 @@ onAuthStateChanged(auth, (u) => {
 
   if (u) {
     ensureUserProfile(u);
+     maybeAskForWorktimeOnLogin(u);
     startPostfachRealtimeForUser(u);
     switchTo(CURRENT_PAGE);
 
