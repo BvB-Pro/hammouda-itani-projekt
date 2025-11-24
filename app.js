@@ -2142,6 +2142,7 @@ async function renderArbeitszeitUser(app){
   monthCard.querySelector("#wtMonth").addEventListener("change", renderMonth);
   renderMonth();
 }
+
 async function renderArbeitszeitAdmin(app){
   app.innerHTML = "";
 
@@ -2153,8 +2154,9 @@ async function renderArbeitszeitAdmin(app){
 
   app.appendChild(cardInfo(
     "Arbeitszeiten – Admin",
-    "Hier kannst du die Arbeitszeit aller freigeschalteten Nutzer einsehen.\n\n" +
-    "Wähle einen Benutzer und einen Monat aus, um die Einträge zu sehen."
+    "Hier kannst du die Arbeitszeit aller freigeschalteten Nutzer einsehen und bearbeiten.\n\n" +
+    "Wähle einen Benutzer und einen Monat aus. Du kannst Start/Ende, Pause (in Minuten) und Soll-Minuten ändern.\n" +
+    "Ist-Zeit und Guthaben werden automatisch neu berechnet."
   ));
 
   // sicherstellen, dass RECIPIENTS geladen sind
@@ -2187,10 +2189,10 @@ async function renderArbeitszeitAdmin(app){
   app.appendChild(selUserCard);
 
   async function loadForAdmin(){
-    const uid = selUserCard.querySelector("#adminUserSelect").value;
+    const uid        = selUserCard.querySelector("#adminUserSelect").value;
     const monthValue = selUserCard.querySelector("#adminMonth").value;
-    const wrap = selUserCard.querySelector("#adminTableWrap");
-    wrap.innerHTML = "";
+    const wrap       = selUserCard.querySelector("#adminTableWrap");
+    wrap.innerHTML   = "";
 
     if (!uid || !monthValue){
       wrap.innerHTML = `<p class="muted">Bitte Benutzer und Monat wählen.</p>`;
@@ -2200,7 +2202,7 @@ async function renderArbeitszeitAdmin(app){
     // Alle Einträge dieses Users holen
     const qRef = query(collection(db, COL.arbeitszeiten), where("uid","==", uid));
     const snap = await getDocs(qRef);
-    const all = [];
+    const all  = [];
     snap.forEach(d => all.push({ id:d.id, ...d.data() }));
     all.sort((a,b)=> (a.datum||"").localeCompare(b.datum||""));
 
@@ -2213,24 +2215,29 @@ async function renderArbeitszeitAdmin(app){
     let sumSoll = 0, sumIst = 0, sumGut = 0;
 
     const rows = list.map(d=>{
-      const pause = d.pauseMin || 0;
+      const pause = d.pauseMin     || 0;
       const ist   = d.totalWorkMin || 0;
-      const soll  = d.sollMin || 480;
-      const gut   = d.guthabenMin || (ist - soll);
+      const soll  = d.sollMin != null ? d.sollMin : defaultSollMinutesForDate(d.datum || monthValue + "-01");
+      const gut   = d.guthabenMin != null ? d.guthabenMin : (ist - soll);
 
       sumSoll += soll;
       sumIst  += ist;
       sumGut  += gut;
 
       return `
-        <tr>
+        <tr data-id="${esc(d.id)}">
           <td>${esc(d.datum || "")}</td>
-          <td>${esc(d.start || "—")}</td>
-          <td>${esc(d.end   || "—")}</td>
-          <td>${esc(minutesToHHMM(pause))}</td>
+          <td><input type="time"   name="start"    value="${d.start || ""}"></td>
+          <td><input type="time"   name="end"      value="${d.end   || ""}"></td>
+          <td><input type="number" name="pauseMin" value="${pause}" min="0" style="width:80px"></td>
           <td>${esc(minutesToHHMM(ist))}</td>
-          <td>${esc(minutesToHHMM(soll))}</td>
+          <td><input type="number" name="sollMin"  value="${soll}"  min="0" style="width:80px"></td>
           <td>${esc(minutesToHHMM(gut))}</td>
+          <td>
+            <button type="button" class="btn btn-save-workday" data-id="${esc(d.id)}">
+              Speichern
+            </button>
+          </td>
         </tr>
       `;
     }).join("");
@@ -2243,10 +2250,11 @@ async function renderArbeitszeitAdmin(app){
               <th>Datum</th>
               <th>Start</th>
               <th>Ende</th>
-              <th>Pause</th>
+              <th>Pause (Min)</th>
               <th>Ist</th>
-              <th>Soll</th>
+              <th>Soll (Min)</th>
               <th>Guthaben</th>
+              <th>Aktion</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -2256,6 +2264,7 @@ async function renderArbeitszeitAdmin(app){
               <th>${esc(minutesToHHMM(sumIst))}</th>
               <th>${esc(minutesToHHMM(sumSoll))}</th>
               <th>${esc(minutesToHHMM(sumGut))}</th>
+              <th></th>
             </tr>
           </tfoot>
         </table>
@@ -2264,6 +2273,33 @@ async function renderArbeitszeitAdmin(app){
   }
 
   selUserCard.querySelector("#adminLoad").addEventListener("click", loadForAdmin);
+
+  // Speichern-Button je Zeile
+  selUserCard.addEventListener("click", async (e)=>{
+    const btn = e.target.closest(".btn-save-workday");
+    if (!btn) return;
+
+    const tr   = btn.closest("tr");
+    const id   = tr.dataset.id;
+    const start    = tr.querySelector('input[name="start"]').value;
+    const end      = tr.querySelector('input[name="end"]').value;
+    const pauseMin = tr.querySelector('input[name="pauseMin"]').value;
+    const sollMin  = tr.querySelector('input[name="sollMin"]').value;
+
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Speichere…";
+    try{
+      await adminSaveWorkday(id, { start, end, pauseMin, sollMin });
+      alert("Tag gespeichert und neu berechnet.");
+      await loadForAdmin();      // neu laden mit aktualisierten Ist/Guthaben
+    }catch(err){
+      alert("Fehler beim Speichern: " + (err.message || err));
+    }finally{
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
+  });
 }
 
 
