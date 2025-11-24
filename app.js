@@ -322,11 +322,11 @@ function updateAuthUI(){
       ud.textContent = "Gast";
     }
   }
-     // Admin-Eintrag für Arbeitszeit nur anzeigen, wenn Rolle vorhanden
-  const btnAdmin = document.querySelector('#userMenuItems button[data-action="arbeitszeit-admin"]');
-  if (btnAdmin) {
-    btnAdmin.style.display = (CURRENT_ROLES.timeAdmin ? "" : "none");
-  }
+// Admin-Button ein- oder ausblenden
+const adminBtn = document.querySelector('[data-action="arbeitszeit-admin"]');
+if (adminBtn) {
+  adminBtn.style.display = CURRENT_ROLES.timeAdmin ? "block" : "none";
+}
 
 }
 
