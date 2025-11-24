@@ -2076,13 +2076,21 @@ async function renderArbeitszeitUser(app){
   const datum = today();
   let workday = await loadWorkdayForUser(u.uid, datum);
 
-  const renderToday = ()=>{
+    const renderToday = ()=>{
     const start = workday?.start || "—";
     const end   = workday?.end   || "—";
     const pauseMin = workday?.pauseMin || 0;
     const nettoMin = workday?.totalWorkMin || 0;
-    const sollMin  = workday?.sollMin || 480;
-    const gutMin   = workday?.guthabenMin || 0;
+
+    // ⬇️ WICHTIG: kein "|| 480" mehr – 0 ist erlaubt
+    const sollMin = (typeof workday?.sollMin === "number")
+      ? workday.sollMin
+      : defaultSollMinutesForDate(datum);
+
+    const gutMin = (typeof workday?.guthabenMin === "number")
+      ? workday.guthabenMin
+      : (nettoMin - sollMin);
+
 
     const pauseHHMM = minutesToHHMM(pauseMin);
     const nettoHHMM = minutesToHHMM(nettoMin);
@@ -2158,11 +2166,19 @@ async function renderArbeitszeitUser(app){
 
     let sumSoll = 0, sumIst = 0, sumGut = 0;
 
-    const rows = list.map(d=>{
-      const pause = d.pauseMin || 0;
+     const rows = list.map(d=>{
+      const pause = d.pauseMin     || 0;
       const ist   = d.totalWorkMin || 0;
-      const soll  = d.sollMin || 480;
-      const gut   = d.guthabenMin || (ist - soll);
+
+      // ⬇️ Falls kein sollMin gespeichert: Standard über Datum
+      const soll = (typeof d.sollMin === "number")
+        ? d.sollMin
+        : defaultSollMinutesForDate(d.datum || mVal + "-01");
+
+      const gut = (typeof d.guthabenMin === "number")
+        ? d.guthabenMin
+        : (ist - soll);
+
 
       sumSoll += soll;
       sumIst  += ist;
