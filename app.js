@@ -652,6 +652,15 @@ async function addDocTo(path, data){
   return addDoc(collection(db, path), { ...data, _by: by, _ts: serverTimestamp() });
 }
 
+// Wochentag aus Datum holen (Kurzform: Mo, Di, ...)
+function weekdayLabel(datumStr){
+  if (!datumStr) return "";
+  const [y,m,d] = datumStr.split("-").map(Number);
+  const dt = new Date(y, m-1, d);
+  const names = ["So","Mo","Di","Mi","Do","Fr","Sa"];
+  return names[dt.getDay()];
+}
+
 //Helper für Zeit und Minuten
 function nowHHMM(){
   const d = new Date();
@@ -2156,6 +2165,7 @@ async function renderArbeitszeitUser(app){
   async function renderMonth(){
     const mVal = monthCard.querySelector("#wtMonth").value;
     const list = await loadWorkdaysForCurrentUser(mVal);
+       const settings = await loadWorktimeSettings(auth.currentUser.uid);
     const wrap = monthCard.querySelector("#wtTableWrap");
     wrap.innerHTML = "";
 
@@ -2164,63 +2174,66 @@ async function renderArbeitszeitUser(app){
       return;
     }
 
-    let sumSoll = 0, sumIst = 0, sumGut = 0;
+      let sumSoll = 0, sumIst = 0, sumGut = 0;
 
-     const rows = list.map(d=>{
-      const pause = d.pauseMin     || 0;
-      const ist   = d.totalWorkMin || 0;
+  const rows = list.map(d=>{
+    const pause = d.pauseMin || 0;
+    const ist   = d.totalWorkMin || 0;
 
-      // ⬇️ Falls kein sollMin gespeichert: Standard über Datum
-      const soll = (typeof d.sollMin === "number")
-        ? d.sollMin
-        : defaultSollMinutesForDate(d.datum || mVal + "-01");
+    // Sollzeit: wenn in DB vorhanden → nutzen, sonst über Wochentag aus settings
+    const soll = (d.sollMin != null)
+      ? d.sollMin
+      : sollMinutesFromSettings(settings, d.datum || (mVal + "-01"));
 
-      const gut = (typeof d.guthabenMin === "number")
-        ? d.guthabenMin
-        : (ist - soll);
+    const gut   = (d.guthabenMin != null) ? d.guthabenMin : (ist - soll);
+    const wtag  = weekdayLabel(d.datum);
 
+    sumSoll += soll;
+    sumIst  += ist;
+    sumGut  += gut;
 
-      sumSoll += soll;
-      sumIst  += ist;
-      sumGut  += gut;
+    return `
+      <tr>
+        <td>${esc(d.datum || "")}</td>
+        <td>${esc(wtag)}</td>
+        <td>${esc(d.start || "—")}</td>
+        <td>${esc(d.end   || "—")}</td>
+        <td>${esc(minutesToHHMM(pause))}</td>
+        <td>${esc(minutesToHHMM(ist))}</td>
+        <td>${esc(minutesToHHMM(soll))}</td>
+        <td>${esc(minutesToHHMM(gut))}</td>
+      </tr>
+    `;
+  }).join("");
 
-      return `
-        <tr>
-          <td>${esc(d.datum || "")}</td>
-          <td>${esc(d.start || "—")}</td>
-          <td>${esc(d.end   || "—")}</td>
-          <td>${esc(minutesToHHMM(pause))}</td>
-          <td>${esc(minutesToHHMM(ist))}</td>
-          <td>${esc(minutesToHHMM(soll))}</td>
-          <td>${esc(minutesToHHMM(gut))}</td>
-        </tr>
-      `;
-    }).join("");
 
     wrap.innerHTML = `
       <div class="table-wrap">
         <table>
-          <thead>
-            <tr>
-              <th>Datum</th>
-              <th>Start</th>
-              <th>Ende</th>
-              <th>Pause</th>
-              <th>Ist</th>
-              <th>Soll</th>
-              <th>Guthaben</th>
-            </tr>
-          </thead>
+         <thead>
+  <tr>
+    <th>Datum</th>
+    <th>Tag</th>
+    <th>Start</th>
+    <th>Ende</th>
+    <th>Pause</th>
+    <th>Ist</th>
+    <th>Soll</th>
+    <th>Guthaben</th>
+  </tr>
+</thead>
+
           <tbody>${rows}</tbody>
           <tfoot>
-            <tr>
-              <th colspan="3">Summe</th>
-              <th>${esc(minutesToHHMM(0))}</th>
-              <th>${esc(minutesToHHMM(sumIst))}</th>
-              <th>${esc(minutesToHHMM(sumSoll))}</th>
-              <th>${esc(minutesToHHMM(sumGut))}</th>
-            </tr>
-          </tfoot>
+  <tr>
+    <th colspan="4">Summe</th>
+    <th>${esc(minutesToHHMM(0))}</th>
+    <th>${esc(minutesToHHMM(sumIst))}</th>
+    <th>${esc(minutesToHHMM(sumSoll))}</th>
+    <th>${esc(minutesToHHMM(sumGut))}</th>
+  </tr>
+</tfoot>
+
         </table>
       </div>
     `;
@@ -2391,49 +2404,59 @@ async function renderArbeitszeitAdmin(app){
 
     let sumSoll = 0, sumIst = 0, sumGut = 0;
 
-    const rows = list.map(d=>{
-      const pause = d.pauseMin     || 0;
-      const ist   = d.totalWorkMin || 0;
-      const soll  = d.sollMin != null ? d.sollMin :  defaultSollMinutesForDate(d.datum || month+"-01");
-      const gut   = d.guthabenMin != null ? d.guthabenMin : (ist - soll);
+   const rows = list.map(d=>{
+  const pause = d.pauseMin     || 0;
+  const ist   = d.totalWorkMin || 0;
 
-      sumSoll += soll;
-      sumIst  += ist;
-      sumGut  += gut;
+  const soll = (d.sollMin != null)
+    ? d.sollMin
+    : sollMinutesFromSettings(settings, d.datum || (month + "-01"));
 
-      return `
-        <tr data-id="${esc(d.id)}">
-          <td>${esc(d.datum || "")}</td>
-          <td><input type="time"   name="start"    value="${d.start || ""}"></td>
-          <td><input type="time"   name="end"      value="${d.end   || ""}"></td>
-          <td><input type="number" name="pauseMin" value="${pause}" min="0" style="width:80px"></td>
-          <td>${esc(minutesToHHMM(ist))}</td>
-          <td><input type="number" name="sollMin"  value="${soll}"  min="0" style="width:80px"></td>
-          <td>${esc(minutesToHHMM(gut))}</td>
-          <td>
-            <button type="button" class="btn btn-save-workday" data-id="${esc(d.id)}">
-              Speichern
-            </button>
-          </td>
-        </tr>
-      `;
-    }).join("");
+  const gut   = d.guthabenMin != null ? d.guthabenMin : (ist - soll);
+  const wtag  = weekdayLabel(d.datum);
+
+  sumSoll += soll;
+  sumIst  += ist;
+  sumGut  += gut;
+
+  return `
+    <tr data-id="${esc(d.id)}">
+      <td>${esc(d.datum || "")}</td>
+      <td>${esc(wtag)}</td>
+      <td><input type="time"   name="start"    value="${d.start || ""}"></td>
+      <td><input type="time"   name="end"      value="${d.end   || ""}"></td>
+      <td><input type="number" name="pauseMin" value="${pause}" min="0" style="width:80px"></td>
+      <td>${esc(minutesToHHMM(ist))}</td>
+      <td><input type="number" name="sollMin"  value="${soll}"  min="0" style="width:80px"></td>
+      <td>${esc(minutesToHHMM(gut))}</td>
+      <td>
+        <button type="button" class="btn btn-save-workday" data-id="${esc(d.id)}">
+          Speichern
+        </button>
+      </td>
+    </tr>
+  `;
+}).join("");
+
 
     tableEl.innerHTML = `
       <div class="table-wrap">
         <table>
-          <thead>
-            <tr>
-              <th>Datum</th>
-              <th>Start</th>
-              <th>Ende</th>
-              <th>Pause (Min)</th>
-              <th>Ist</th>
-              <th>Soll (Min)</th>
-              <th>Guthaben</th>
-              <th>Aktion</th>
-            </tr>
-          </thead>
+<thead>
+  <tr>
+    <th>Datum</th>
+    <th>Tag</th>
+    <th>Start</th>
+    <th>Ende</th>
+    <th>Pause (Min)</th>
+    <th>Ist</th>
+    <th>Soll (Min)</th>
+    <th>Guthaben</th>
+    <th>Aktion</th>
+  </tr>
+</thead>
+
+
           <tbody>${rows}</tbody>
           <tfoot>
             <tr>
