@@ -74,6 +74,8 @@ let CURRENT_PAGE = loadUI().lastPage || "home";
 let CURRENT_USER = null;
 let CURRENT_PROFILE = null;
 let CURRENT_ROLES = {};  // z. B. { timeAdmin:true, superAdmin:true }
+// Arbeitszeit-Einstellungen Cache pro Nutzer
+const WORKTIME_SETTINGS_CACHE = {};  // { uid: {soll:{mo:..}, teilzeit:false} }
 
 
 function ensureGalleryStyles(){
@@ -199,8 +201,10 @@ const COL = {
  postfach:        base("postfach"),      // ⬅️ NEU
    //Arbeitszeiten
    arbeitszeiten: base("arbeitszeiten"),   // ⬅️ NEU: Arbeitszeiterfassung
+ worktime_settings: base("worktime_settings"), // ⬅️ Einstellungen Sollzeiten pro Nutzer
 
 };
+
 
 /* ====== Store ====== */
 const STORE = {
@@ -671,27 +675,70 @@ function minutesToHHMM(mins){
   return `${sign}${String(h).padStart(2,"0")}:${String(rest).padStart(2,"0")}`;
 }
 
-// Standard-Sollzeit je Wochentag (für Vollzeit)
-// Mo: 09:00h, Di: 05:00h, Mi–Fr: 08:00h
+
+// Standard-Sollzeit je Wochentag (Vollzeit)
+// Mo: 08:00h, Di: 05:00h, Mi–Fr: 08:00h
 function defaultSollMinutesForDate(datumStr){
   try {
     const [y,m,d] = datumStr.split("-").map(Number);
     const dt  = new Date(y, m-1, d);  // lokales Datum
-    const dow = dt.getDay();          // 0=So, 1=Mo, ... 6=Sa
+    const dow = dt.getDay();          // 0=So, 1=Mo,...,6=Sa
     switch(dow){
-      case 1: return 9 * 60; // Montag
+      case 1: return 8 * 60; // Montag
       case 2: return 5 * 60; // Dienstag
       case 3:
       case 4:
       case 5: return 8 * 60; // Mi–Fr
-      default: return 0;     // Sa/So = 0
+      default: return 0;     // Sa/So
     }
   } catch(e) {
-    return 8 * 60;           // Fallback
+    return 8 * 60;
   }
 }
 
-// Zentrale Neuberechnung für einen Arbeitstag
+// Einstellungen eines Nutzers laden (oder aus Cache)
+async function loadWorktimeSettings(uid){
+  if (!uid) return null;
+  if (WORKTIME_SETTINGS_CACHE[uid]) return WORKTIME_SETTINGS_CACHE[uid];
+
+  const ref  = doc(db, base("worktime_settings"), uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()){
+    const def = {
+      soll: { mo: 9*60, di: 5*60, mi: 8*60, do: 8*60, fr: 8*60 },
+      teilzeit: false
+    };
+    WORKTIME_SETTINGS_CACHE[uid] = def;
+    return def;
+  }
+  const data = snap.data() || {};
+  // falls irgendwas fehlt, weich auf Defaults aus
+  data.soll = data.soll || {};
+  WORKTIME_SETTINGS_CACHE[uid] = data;
+  return data;
+}
+
+// aus Einstellungen + Datum konkrete Soll-Minuten berechnen
+function sollMinutesFromSettings(settings, datumStr){
+  if (!settings || !settings.soll) return defaultSollMinutesForDate(datumStr);
+
+  const [y,m,d] = datumStr.split("-").map(Number);
+  const dt  = new Date(y, m-1, d);
+  const dow = dt.getDay(); // 0=So,...,6=Sa
+  const key =
+    dow === 1 ? "mo" :
+    dow === 2 ? "di" :
+    dow === 3 ? "mi" :
+    dow === 4 ? "do" :
+    dow === 5 ? "fr" :
+    dow === 6 ? "sa" : "so";
+
+  const v = settings.soll[key];
+  if (typeof v === "number") return v;
+  return defaultSollMinutesForDate(datumStr);
+}
+
+// Zentrale Neuberechnung eines Arbeitstages
 function recalcWorkdayCore(data){
   const start = data.start || null;
   const end   = data.end   || null;
@@ -703,19 +750,18 @@ function recalcWorkdayCore(data){
     netto = Math.max(0, brutto - pause);
   }
 
-  // Soll: aus Datensatz oder Standard
-  const soll = (data.sollMin != null)
-    ? Number(data.sollMin)
-    : defaultSollMinutesForDate(data.datum || today());
+  if (data.sollMin == null){
+    data.sollMin = defaultSollMinutesForDate(data.datum || today());
+  }
 
   data.pauseMin     = data.pauseMin || 0;
-  data.sollMin      = soll;
   data.totalWorkMin = netto;
-  data.guthabenMin  = netto - soll;
+  data.guthabenMin  = netto - data.sollMin;
   data.pauseOpenAt  = data.pauseOpenAt || null;
 
   return data;
 }
+
 
 
 //Heutiges Arbeitszeit Dokument holen
@@ -727,7 +773,7 @@ async function loadWorkdayForUser(uid, datum){
   return { id, ...snap.data() };
 }
 
-//Arbeitszeit-Update-Funktion
+//Arbeitszeit-Update-Funktion (für den eingeloggten Nutzer)
 async function updateWorkday(action){
   const u = auth.currentUser;
   if (!u) throw new Error("Nur mit Login nutzbar.");
@@ -737,17 +783,24 @@ async function updateWorkday(action){
   const ref   = doc(db, COL.arbeitszeiten, id);
   const snap  = await getDoc(ref);
 
-  let data = snap.exists() ? snap.data() : {
-    uid: u.uid,
-    datum,
-    start: null,
-    end: null,
-    pauseMin: 0,
-    pauseOpenAt: null,
-    totalWorkMin: 0,
-    sollMin: defaultSollMinutesForDate(datum),
-    guthabenMin: 0
-  };
+  let data;
+  if (snap.exists()){
+    data = snap.data();
+  } else {
+    const settings = await loadWorktimeSettings(u.uid);
+    const sollMin  = sollMinutesFromSettings(settings, datum);
+    data = {
+      uid: u.uid,
+      datum,
+      start: null,
+      end: null,
+      pauseMin: 0,
+      pauseOpenAt: null,
+      totalWorkMin: 0,
+      sollMin,
+      guthabenMin: 0
+    };
+  }
 
   const now = nowHHMM();
 
@@ -757,7 +810,11 @@ async function updateWorkday(action){
       data.end         = null;
       data.pauseMin    = 0;
       data.pauseOpenAt = null;
-      data.sollMin     = defaultSollMinutesForDate(datum);
+      // Soll aus Settings holen
+      {
+        const settings = await loadWorktimeSettings(u.uid);
+        data.sollMin   = sollMinutesFromSettings(settings, datum);
+      }
       recalcWorkdayCore(data);
       break;
 
@@ -771,7 +828,6 @@ async function updateWorkday(action){
       if (!data.pauseOpenAt) throw new Error("Keine begonnene Pause gefunden.");
       data.pauseMin = (data.pauseMin || 0) + diffMinutes(data.pauseOpenAt, now);
       data.pauseOpenAt = null;
-      // falls Feierabend schon gesetzt war → neu berechnen
       if (data.start && data.end) recalcWorkdayCore(data);
       break;
 
@@ -808,7 +864,6 @@ async function loadWorkdaysForCurrentUser(monthValue){
   if (!monthValue) return all;
   return all.filter(x => (x.datum || "").startsWith(monthValue));
 }
-
 // Admin-Update eines einzelnen Arbeitstages
 async function adminSaveWorkday(docId, patch){
   const ref  = doc(db, COL.arbeitszeiten, docId);
@@ -821,13 +876,10 @@ async function adminSaveWorkday(docId, patch){
   data.end      = (patch.end   || "").trim() || null;
   data.pauseMin = Number(patch.pauseMin || 0);
 
-  // wenn Feld leer gelassen: Standard-Soll nach Datum nehmen
-  if (patch.sollMin !== undefined && patch.sollMin !== "") {
+  if (patch.sollMin !== undefined && patch.sollMin !== ""){
     data.sollMin = Number(patch.sollMin);
-  } else {
-    data.sollMin = data.sollMin != null
-      ? Number(data.sollMin)
-      : defaultSollMinutesForDate(data.datum || today());
+  } else if (data.sollMin == null) {
+    data.sollMin = defaultSollMinutesForDate(data.datum || today());
   }
 
   recalcWorkdayCore(data);
@@ -842,6 +894,25 @@ async function adminSaveWorkday(docId, patch){
     pauseOpenAt:  null,
     _ts:          serverTimestamp()
   });
+}
+// Admin: Wochen-Sollzeiten eines Nutzers speichern
+async function adminSaveWorktimeSettings(uid, formData){
+  const soll = {
+    mo: Math.max(0, Number(formData.mo || 0)),
+    di: Math.max(0, Number(formData.di || 0)),
+    mi: Math.max(0, Number(formData.mi || 0)),
+    do: Math.max(0, Number(formData.do || 0)),
+    fr: Math.max(0, Number(formData.fr || 0)),
+    sa: Math.max(0, Number(formData.sa || 0)),
+    so: Math.max(0, Number(formData.so || 0)),
+  };
+  const teilzeit = formData.teilzeit === "on";
+
+  const ref = doc(db, base("worktime_settings"), uid);
+  await setDoc(ref, { soll, teilzeit }, { merge:true });
+
+  // Cache aktualisieren
+  WORKTIME_SETTINGS_CACHE[uid] = { ...(WORKTIME_SETTINGS_CACHE[uid] || {}), soll, teilzeit };
 }
 
 
@@ -2152,63 +2223,153 @@ async function renderArbeitszeitAdmin(app){
     return;
   }
 
+  await loadRecipientsOnce(); // RECIPIENTS füllen
+
   app.appendChild(cardInfo(
     "Arbeitszeiten – Admin",
-    "Hier kannst du die Arbeitszeit aller freigeschalteten Nutzer einsehen und bearbeiten.\n\n" +
-    "Wähle einen Benutzer und einen Monat aus. Du kannst Start/Ende, Pause (in Minuten) und Soll-Minuten ändern.\n" +
-    "Ist-Zeit und Guthaben werden automatisch neu berechnet."
+    "Wähle einen Benutzer aus. Oben kannst du seine Wochen-Sollzeiten (Mo–So) einstellen, " +
+    "darunter siehst du die Monatsübersicht mit Ist/Soll/Guthaben. Änderungen an Start/Ende/Pause/Soll " +
+    "werden automatisch neu berechnet."
   ));
 
-  // sicherstellen, dass RECIPIENTS geladen sind
-  await loadRecipientsOnce();
-
-  const selUserCard = ce("div",{className:"card"});
+  const adminWrap = ce("div",{className:"card"});
   const monthDefault = (() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
   })();
 
-  selUserCard.innerHTML = `
-    <h3>Benutzer & Monat wählen</h3>
+  adminWrap.innerHTML = `
+    <h3>Benutzer & Monat</h3>
     <label>Benutzer
-      <select id="adminUserSelect">
+      <select id="wtAdminUser">
         <option value="">— wählen —</option>
-        ${RECIPIENTS.map(u => 
+        ${RECIPIENTS.map(u =>
           `<option value="${esc(u.uid)}">${esc(u.displayName)} (${esc(u.username)})</option>`
         ).join("")}
       </select>
     </label>
     <label>Monat
-      <input type="month" id="adminMonth" value="${monthDefault}">
+      <input type="month" id="wtAdminMonth" value="${monthDefault}">
     </label>
     <div class="toolbar">
-      <button type="button" class="btn primary" id="adminLoad">Laden</button>
+      <button type="button" class="btn primary" id="wtAdminLoad">Laden</button>
     </div>
-    <div id="adminTableWrap" style="margin-top:8px;"></div>
+
+    <div id="wtAdminSettings" style="margin-top:12px;"></div>
+    <div id="wtAdminTableWrap" style="margin-top:12px;"></div>
   `;
-  app.appendChild(selUserCard);
+  app.appendChild(adminWrap);
+
+  const selUserEl  = adminWrap.querySelector("#wtAdminUser");
+  const monthEl    = adminWrap.querySelector("#wtAdminMonth");
+  const settingsEl = adminWrap.querySelector("#wtAdminSettings");
+  const tableEl    = adminWrap.querySelector("#wtAdminTableWrap");
+
+  // Hilfsfunktionen für h:mm <-> Minuten
+  const minsToHM = (m)=>{
+    m = Number(m||0);
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    return `${String(h).padStart(2,"0")}:${String(mm).padStart(2,"0")}`;
+  };
+  const hmToMins = (s)=>{
+    if (!s) return 0;
+    const [h,m] = String(s).split(":").map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+    return h*60 + m;
+  };
 
   async function loadForAdmin(){
-    const uid        = selUserCard.querySelector("#adminUserSelect").value;
-    const monthValue = selUserCard.querySelector("#adminMonth").value;
-    const wrap       = selUserCard.querySelector("#adminTableWrap");
-    wrap.innerHTML   = "";
+    const uid   = selUserEl.value;
+    const month = monthEl.value;
+    settingsEl.innerHTML = "";
+    tableEl.innerHTML    = "";
 
-    if (!uid || !monthValue){
-      wrap.innerHTML = `<p class="muted">Bitte Benutzer und Monat wählen.</p>`;
+    if (!uid || !month){
+      settingsEl.innerHTML = `<p class="muted">Bitte Benutzer und Monat wählen.</p>`;
       return;
     }
 
-    // Alle Einträge dieses Users holen
+    // 1) Wochen-Sollzeiten laden
+    const settings = await loadWorktimeSettings(uid);
+    const soll = settings?.soll || {};
+
+    const settingsForm = ce("form");
+    settingsForm.innerHTML = `
+      <h4>Wochen-Sollzeiten (in Stunden:Minuten)</h4>
+      <div class="grid-2">
+        <label>Montag
+          <input type="time" name="mo" value="${minsToHM(soll.mo ?? 9*60)}">
+        </label>
+        <label>Dienstag
+          <input type="time" name="di" value="${minsToHM(soll.di ?? 5*60)}">
+        </label>
+        <label>Mittwoch
+          <input type="time" name="mi" value="${minsToHM(soll.mi ?? 8*60)}">
+        </label>
+        <label>Donnerstag
+          <input type="time" name="do" value="${minsToHM(soll.do ?? 8*60)}">
+        </label>
+        <label>Freitag
+          <input type="time" name="fr" value="${minsToHM(soll.fr ?? 8*60)}">
+        </label>
+        <label>Samstag
+          <input type="time" name="sa" value="${minsToHM(soll.sa ?? 0)}">
+        </label>
+        <label>Sonntag
+          <input type="time" name="so" value="${minsToHM(soll.so ?? 0)}">
+        </label>
+        <label style="display:flex;align-items:center;gap:.4rem;margin-top:.6rem;">
+          <input type="checkbox" name="teilzeit" ${settings?.teilzeit ? "checked" : ""}>
+          Teilzeit
+        </label>
+      </div>
+      <div class="toolbar" style="margin-top:8px;">
+        <button type="submit" class="btn primary">Sollzeiten speichern</button>
+      </div>
+    `;
+    settingsEl.appendChild(settingsForm);
+
+    settingsForm.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const fd = new FormData(settingsForm);
+      const data = Object.fromEntries(fd.entries());
+      // time -> Minuten umrechnen
+      const payload = {
+        mo: hmToMins(data.mo),
+        di: hmToMins(data.di),
+        mi: hmToMins(data.mi),
+        do: hmToMins(data.do),
+        fr: hmToMins(data.fr),
+        sa: hmToMins(data.sa),
+        so: hmToMins(data.so),
+        teilzeit: data.teilzeit
+      };
+      const btn = settingsForm.querySelector("button[type=submit]");
+      const orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Speichere…";
+      try{
+        await adminSaveWorktimeSettings(uid, payload);
+        alert("Sollzeiten gespeichert. Neue Tage übernehmen diese Vorgaben automatisch.");
+      }catch(err){
+        alert("Fehler beim Speichern der Sollzeiten: " + (err.message || err));
+      }finally{
+        btn.disabled = false;
+        btn.textContent = orig;
+      }
+    });
+
+    // 2) Monatsübersicht laden
     const qRef = query(collection(db, COL.arbeitszeiten), where("uid","==", uid));
     const snap = await getDocs(qRef);
-    const all  = [];
+    const all = [];
     snap.forEach(d => all.push({ id:d.id, ...d.data() }));
     all.sort((a,b)=> (a.datum||"").localeCompare(b.datum||""));
 
-    const list = all.filter(x => (x.datum || "").startsWith(monthValue));
+    const list = all.filter(x => (x.datum || "").startsWith(month));
     if (!list.length){
-      wrap.innerHTML = `<p class="muted">Keine Einträge für diesen Monat.</p>`;
+      tableEl.innerHTML = `<p class="muted">Keine Einträge für diesen Monat.</p>`;
       return;
     }
 
@@ -2217,7 +2378,7 @@ async function renderArbeitszeitAdmin(app){
     const rows = list.map(d=>{
       const pause = d.pauseMin     || 0;
       const ist   = d.totalWorkMin || 0;
-      const soll  = d.sollMin != null ? d.sollMin : defaultSollMinutesForDate(d.datum || monthValue + "-01");
+      const soll  = d.sollMin != null ? d.sollMin :  defaultSollMinutesForDate(d.datum || month+"-01");
       const gut   = d.guthabenMin != null ? d.guthabenMin : (ist - soll);
 
       sumSoll += soll;
@@ -2242,7 +2403,7 @@ async function renderArbeitszeitAdmin(app){
       `;
     }).join("");
 
-    wrap.innerHTML = `
+    tableEl.innerHTML = `
       <div class="table-wrap">
         <table>
           <thead>
@@ -2272,10 +2433,10 @@ async function renderArbeitszeitAdmin(app){
     `;
   }
 
-  selUserCard.querySelector("#adminLoad").addEventListener("click", loadForAdmin);
+  adminWrap.querySelector("#wtAdminLoad").addEventListener("click", loadForAdmin);
 
-  // Speichern-Button je Zeile
-  selUserCard.addEventListener("click", async (e)=>{
+  // Speichern-Buttons in der Tabelle
+  adminWrap.addEventListener("click", async (e)=>{
     const btn = e.target.closest(".btn-save-workday");
     if (!btn) return;
 
@@ -2292,9 +2453,9 @@ async function renderArbeitszeitAdmin(app){
     try{
       await adminSaveWorkday(id, { start, end, pauseMin, sollMin });
       alert("Tag gespeichert und neu berechnet.");
-      await loadForAdmin();      // neu laden mit aktualisierten Ist/Guthaben
+      await loadForAdmin();
     }catch(err){
-      alert("Fehler beim Speichern: " + (err.message || err));
+      alert("Fehler beim Speichern des Tages: " + (err.message || err));
     }finally{
       btn.disabled = false;
       btn.textContent = orig;
