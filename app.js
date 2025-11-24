@@ -671,6 +671,53 @@ function minutesToHHMM(mins){
   return `${sign}${String(h).padStart(2,"0")}:${String(rest).padStart(2,"0")}`;
 }
 
+// Standard-Sollzeit je Wochentag (für Vollzeit)
+// Mo: 09:00h, Di: 05:00h, Mi–Fr: 08:00h
+function defaultSollMinutesForDate(datumStr){
+  try {
+    const [y,m,d] = datumStr.split("-").map(Number);
+    const dt  = new Date(y, m-1, d);  // lokales Datum
+    const dow = dt.getDay();          // 0=So, 1=Mo, ... 6=Sa
+    switch(dow){
+      case 1: return 9 * 60; // Montag
+      case 2: return 5 * 60; // Dienstag
+      case 3:
+      case 4:
+      case 5: return 8 * 60; // Mi–Fr
+      default: return 0;     // Sa/So = 0
+    }
+  } catch(e) {
+    return 8 * 60;           // Fallback
+  }
+}
+
+// Zentrale Neuberechnung für einen Arbeitstag
+function recalcWorkdayCore(data){
+  const start = data.start || null;
+  const end   = data.end   || null;
+
+  let netto = 0;
+  if (start && end){
+    const brutto = diffMinutes(start, end);
+    const pause  = data.pauseMin || 0;
+    netto = Math.max(0, brutto - pause);
+  }
+
+  // Soll: aus Datensatz oder Standard
+  const soll = (data.sollMin != null)
+    ? Number(data.sollMin)
+    : defaultSollMinutesForDate(data.datum || today());
+
+  data.pauseMin     = data.pauseMin || 0;
+  data.sollMin      = soll;
+  data.totalWorkMin = netto;
+  data.guthabenMin  = netto - soll;
+  data.pauseOpenAt  = data.pauseOpenAt || null;
+
+  return data;
+}
+
+
 //Heutiges Arbeitszeit Dokument holen
 async function loadWorkdayForUser(uid, datum){
   const id = `${uid}_${datum}`;
@@ -686,9 +733,9 @@ async function updateWorkday(action){
   if (!u) throw new Error("Nur mit Login nutzbar.");
 
   const datum = today(); // "YYYY-MM-DD"
-  const id = `${u.uid}_${datum}`;
-  const ref = doc(db, COL.arbeitszeiten, id);
-  const snap = await getDoc(ref);
+  const id    = `${u.uid}_${datum}`;
+  const ref   = doc(db, COL.arbeitszeiten, id);
+  const snap  = await getDoc(ref);
 
   let data = snap.exists() ? snap.data() : {
     uid: u.uid,
@@ -698,7 +745,7 @@ async function updateWorkday(action){
     pauseMin: 0,
     pauseOpenAt: null,
     totalWorkMin: 0,
-    sollMin: 480,     // 8h
+    sollMin: defaultSollMinutesForDate(datum),
     guthabenMin: 0
   };
 
@@ -706,12 +753,12 @@ async function updateWorkday(action){
 
   switch(action){
     case "start":
-      data.start = now;
-      data.end = null;
-      data.pauseMin = 0;
+      data.start       = now;
+      data.end         = null;
+      data.pauseMin    = 0;
       data.pauseOpenAt = null;
-      data.totalWorkMin = 0;
-      data.guthabenMin = 0;
+      data.sollMin     = defaultSollMinutesForDate(datum);
+      recalcWorkdayCore(data);
       break;
 
     case "pauseStart":
@@ -724,17 +771,14 @@ async function updateWorkday(action){
       if (!data.pauseOpenAt) throw new Error("Keine begonnene Pause gefunden.");
       data.pauseMin = (data.pauseMin || 0) + diffMinutes(data.pauseOpenAt, now);
       data.pauseOpenAt = null;
+      // falls Feierabend schon gesetzt war → neu berechnen
+      if (data.start && data.end) recalcWorkdayCore(data);
       break;
 
     case "feierabend":
       if (!data.start) throw new Error("Bitte zuerst die Arbeit beginnen.");
       data.end = now;
-      const brutto = diffMinutes(data.start, data.end);
-      const pause = data.pauseMin || 0;
-      const netto = Math.max(0, brutto - pause);
-      data.totalWorkMin = netto;
-      const soll = data.sollMin || 480;
-      data.guthabenMin = netto - soll;
+      recalcWorkdayCore(data);
       break;
 
     default:
@@ -745,8 +789,10 @@ async function updateWorkday(action){
   return { id, ...data };
 }
 
+
 //Monatsliste
 async function loadWorkdaysForCurrentUser(monthValue){
+
   // monthValue z. B. "2025-11"
   const u = auth.currentUser;
   if (!u) throw new Error("Nur mit Login nutzbar.");
@@ -761,6 +807,41 @@ async function loadWorkdaysForCurrentUser(monthValue){
 
   if (!monthValue) return all;
   return all.filter(x => (x.datum || "").startsWith(monthValue));
+}
+
+// Admin-Update eines einzelnen Arbeitstages
+async function adminSaveWorkday(docId, patch){
+  const ref  = doc(db, COL.arbeitszeiten, docId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Eintrag nicht gefunden.");
+
+  const data = snap.data();
+
+  data.start    = (patch.start || "").trim() || null;
+  data.end      = (patch.end   || "").trim() || null;
+  data.pauseMin = Number(patch.pauseMin || 0);
+
+  // wenn Feld leer gelassen: Standard-Soll nach Datum nehmen
+  if (patch.sollMin !== undefined && patch.sollMin !== "") {
+    data.sollMin = Number(patch.sollMin);
+  } else {
+    data.sollMin = data.sollMin != null
+      ? Number(data.sollMin)
+      : defaultSollMinutesForDate(data.datum || today());
+  }
+
+  recalcWorkdayCore(data);
+
+  await updateDoc(ref, {
+    start:        data.start,
+    end:          data.end,
+    pauseMin:     data.pauseMin,
+    sollMin:      data.sollMin,
+    totalWorkMin: data.totalWorkMin,
+    guthabenMin:  data.guthabenMin,
+    pauseOpenAt:  null,
+    _ts:          serverTimestamp()
+  });
 }
 
 
