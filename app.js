@@ -2460,7 +2460,7 @@ async function renderArbeitszeitAdmin(app){
           <tbody>${rows}</tbody>
           <tfoot>
             <tr>
-              <th colspan="4">Summen</th>
+              <th colspan="5">Summen</th>
               <th>${esc(minutesToHHMM(sumIst))}</th>
               <th>${esc(minutesToHHMM(sumSoll))}</th>
               <th>${esc(minutesToHHMM(sumGut))}</th>
