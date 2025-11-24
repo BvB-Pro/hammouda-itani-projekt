@@ -705,7 +705,7 @@ async function loadWorktimeSettings(uid){
   const snap = await getDoc(ref);
   if (!snap.exists()){
     const def = {
-      soll: { mo: 9*60, di: 5*60, mi: 8*60, do: 8*60, fr: 8*60 },
+      soll: { mo: 8*60, di: 5*60, mi: 8*60, do: 8*60, fr: 8*60 },
       teilzeit: false
     };
     WORKTIME_SETTINGS_CACHE[uid] = def;
